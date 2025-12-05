@@ -69,9 +69,9 @@ export function ChatInterface({
       {/* Chat content */}
       <ScrollArea className="flex-1 px-6" ref={scrollRef}>
         {isNewChat ? (
-          <div className="max-w-2xl mx-auto py-16 animate-fade-in">
+          <div className="flex-1 flex flex-col items-center justify-center px-6 animate-fade-in">
             {/* Welcome header */}
-            <div className="text-center mb-10">
+            <div className="text-center mb-8">
               <div className="w-14 h-14 rounded-2xl gradient-brand flex items-center justify-center mx-auto mb-6">
                 <span className="text-2xl font-bold text-primary-foreground">O</span>
               </div>
@@ -84,22 +84,22 @@ export function ChatInterface({
               </h1>
             </div>
 
-            {/* Quick actions */}
+            {/* Centered input */}
+            <div className="w-full max-w-2xl mb-4">
+              <ChatInput
+                onSend={onSendMessage}
+                selectedTemplate={selectedTemplate}
+                onSelectTemplate={onSelectTemplate}
+                isLoading={isLoading}
+              />
+            </div>
+
+            {/* Quick actions as horizontal chips */}
             <QuickActions onSelect={handleQuickAction} />
 
             {/* Help text */}
-            <p className="text-center text-sm text-muted-foreground mt-8">
+            <p className="text-center text-sm text-muted-foreground mt-6">
               Okidoki has a library of document templates for you to use!
-              <br />
-              Enable writing mode with the{" "}
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-muted rounded text-xs">
-                📝
-              </span>{" "}
-              button or add your own{" "}
-              <a href="#" className="text-primary hover:underline">
-                custom templates
-              </a>
-              .
             </p>
           </div>
         ) : (
@@ -133,17 +133,19 @@ export function ChatInterface({
         )}
       </ScrollArea>
 
-      {/* Input */}
-      <div className="p-4 border-t border-border">
-        <div className="max-w-3xl mx-auto">
-          <ChatInput
-            onSend={onSendMessage}
-            selectedTemplate={selectedTemplate}
-            onSelectTemplate={onSelectTemplate}
-            isLoading={isLoading}
-          />
+      {/* Input - only show at bottom when not new chat */}
+      {!isNewChat && (
+        <div className="p-4 border-t border-border">
+          <div className="max-w-3xl mx-auto">
+            <ChatInput
+              onSend={onSendMessage}
+              selectedTemplate={selectedTemplate}
+              onSelectTemplate={onSelectTemplate}
+              isLoading={isLoading}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
