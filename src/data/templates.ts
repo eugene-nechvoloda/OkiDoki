@@ -1,0 +1,122 @@
+import type { PRDTemplate, QuickAction } from "@/types";
+
+export const BUILT_IN_TEMPLATES: PRDTemplate[] = [
+  {
+    id: "standard-prd",
+    name: "Standard PRD",
+    description: "Comprehensive product requirements document with all essential sections",
+    sections: [
+      "Executive Summary",
+      "Problem Statement",
+      "Goals & Non-goals",
+      "Users & Personas",
+      "Use Cases",
+      "Functional Requirements",
+      "Non-functional Requirements",
+      "UX Flows",
+      "Success Metrics",
+      "Risks & Dependencies",
+      "Open Questions",
+    ],
+    isBuiltIn: true,
+  },
+  {
+    id: "discovery-brief",
+    name: "Discovery Brief",
+    description: "Lightweight template for early-stage product discovery",
+    sections: [
+      "Context",
+      "Hypotheses",
+      "Research Plan",
+      "Signals to Validate",
+      "Findings",
+      "Next Steps",
+    ],
+    isBuiltIn: true,
+  },
+  {
+    id: "experiment-prd",
+    name: "Experiment PRD",
+    description: "Template for A/B tests and controlled experiments",
+    sections: [
+      "Hypothesis",
+      "Experiment Design",
+      "Success Metrics",
+      "Sample & Power",
+      "Procedure",
+      "Risks",
+      "Post-Analysis Plan",
+    ],
+    isBuiltIn: true,
+  },
+  {
+    id: "rfc",
+    name: "RFC (Request for Comments)",
+    description: "Lightweight decision document for technical or process changes",
+    sections: [
+      "Proposal",
+      "Rationale",
+      "Alternatives Considered",
+      "Impacts",
+      "Rollout Plan",
+      "Decision",
+    ],
+    isBuiltIn: true,
+  },
+  {
+    id: "api-documentation",
+    name: "API Documentation",
+    description: "Comprehensive guide for documenting APIs",
+    sections: [
+      "Overview",
+      "Authentication",
+      "Endpoints",
+      "Request/Response Examples",
+      "Error Handling",
+      "Rate Limits",
+    ],
+    isBuiltIn: true,
+  },
+  {
+    id: "competitive-analysis",
+    name: "Competitive Analysis Report",
+    description: "Framework for analyzing competitors and market positioning",
+    sections: [
+      "Executive Summary",
+      "Competitors Overview",
+      "Feature Comparison",
+      "Pricing Analysis",
+      "Strengths & Weaknesses",
+      "Strategic Recommendations",
+    ],
+    isBuiltIn: true,
+  },
+];
+
+export const QUICK_ACTIONS: QuickAction[] = [
+  {
+    type: "write",
+    icon: "📝",
+    title: "Help me write a document",
+    description: "Create a new PRD or other document",
+  },
+  {
+    type: "improve",
+    icon: "🔄",
+    title: "Help me improve an existing document",
+    description: "Get expert feedback on your writing",
+    isPro: true,
+  },
+  {
+    type: "brainstorm",
+    icon: "🚀",
+    title: "Brainstorm new features",
+    description: "Generate ideas for your product roadmap",
+  },
+  {
+    type: "feedback",
+    icon: "📢",
+    title: "Get feedback on my ideas",
+    description: "Receive insights on your product concepts",
+  },
+];
