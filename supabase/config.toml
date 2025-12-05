@@ -1,0 +1,4 @@
+project_id = "itaacfxqowbweibgxbqo"
+
+[functions.generate-prd]
+verify_jwt = false
