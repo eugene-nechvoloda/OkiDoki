@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/popover";
 import type { PRDTemplate } from "@/types";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -192,7 +193,16 @@ export function ChatInput({
                     </div>
                     <span className="text-sm font-medium">From computer</span>
                   </button>
-                  <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors">
+                  <button 
+                    onClick={() => {
+                      toast("Coming soon", {
+                        description: "Google Drive integration will be available soon.",
+                      });
+                      setAddMenuOpen(false);
+                      setUploadSubmenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors"
+                  >
                     <div className="h-7 w-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                       <Globe className="h-3.5 w-3.5 text-emerald-600" />
                     </div>
