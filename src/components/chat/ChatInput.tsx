@@ -21,6 +21,7 @@ import {
   X,
   FileText,
   Brain,
+  GitBranch,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -59,6 +60,13 @@ const DEPTH_LEVELS = [
   { id: "deep", label: "Deep", value: 0.9 },
 ];
 
+const STRUCTURES = [
+  { id: "single", label: "Single document", description: "One comprehensive PRD" },
+  { id: "tree-2", label: "Tree (2 levels)", description: "Parent with child documents" },
+  { id: "tree-3", label: "Tree (3 levels)", description: "Deeper nested hierarchy" },
+  { id: "tree-4", label: "Tree (4+ levels)", description: "Complex multi-level structure" },
+];
+
 export function ChatInput({
   onSend,
   isLoading,
@@ -69,10 +77,12 @@ export function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTone, setSelectedTone] = useState("balanced");
   const [selectedDepth, setSelectedDepth] = useState("moderate");
+  const [selectedStructure, setSelectedStructure] = useState("single");
   const [deepThinking, setDeepThinking] = useState(false);
   const [webResearch, setWebResearch] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [toneSubmenu, setToneSubmenu] = useState(false);
+  const [structureSubmenu, setStructureSubmenu] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [uploadSubmenu, setUploadSubmenu] = useState(false);
 
@@ -109,6 +119,7 @@ export function ChatInput({
 
   const currentTone = TONES.find((t) => t.id === selectedTone);
   const currentDepth = DEPTH_LEVELS.find((d) => d.id === selectedDepth);
+  const currentStructure = STRUCTURES.find((s) => s.id === selectedStructure);
 
   return (
     <div className="border border-border/60 rounded-2xl bg-card/80 backdrop-blur-sm shadow-elegant overflow-hidden">
@@ -253,7 +264,10 @@ export function ChatInput({
           {/* Settings/Config button */}
           <Popover open={toolsOpen} onOpenChange={(open) => {
             setToolsOpen(open);
-            if (!open) setToneSubmenu(false);
+            if (!open) {
+              setToneSubmenu(false);
+              setStructureSubmenu(false);
+            }
           }}>
             <PopoverTrigger asChild>
               <Button
@@ -301,6 +315,37 @@ export function ChatInput({
                     </button>
                   ))}
                 </div>
+              ) : structureSubmenu ? (
+                <div className="space-y-0.5">
+                  <button
+                    onClick={() => setStructureSubmenu(false)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    <span className="text-sm">Document structure</span>
+                  </button>
+                  <div className="h-px bg-border/50 my-1" />
+                  {STRUCTURES.map((structure) => (
+                    <button
+                      key={structure.id}
+                      onClick={() => {
+                        setSelectedStructure(structure.id);
+                        setStructureSubmenu(false);
+                      }}
+                      className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors"
+                    >
+                      <div>
+                        <div className="text-sm font-medium">{structure.label}</div>
+                        <div className="text-xs text-muted-foreground">{structure.description}</div>
+                      </div>
+                      {selectedStructure === structure.id && (
+                        <div className="h-5 w-5 rounded-full bg-primary/15 flex items-center justify-center">
+                          <Check className="h-3 w-3 text-primary" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
               ) : (
                 <div className="space-y-0.5">
                   <button
@@ -314,6 +359,22 @@ export function ChatInput({
                       <div>
                         <div className="text-sm font-medium">Tone</div>
                         <div className="text-xs text-muted-foreground">{currentTone?.label}</div>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+
+                  <button
+                    onClick={() => setStructureSubmenu(true)}
+                    className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-7 w-7 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                        <GitBranch className="h-3.5 w-3.5 text-teal-600" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">Structure</div>
+                        <div className="text-xs text-muted-foreground">{currentStructure?.label}</div>
                       </div>
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
