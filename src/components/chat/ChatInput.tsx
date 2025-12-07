@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -64,6 +64,8 @@ export function ChatInput({
   placeholder = "Describe your product idea...",
 }: ChatInputProps) {
   const [input, setInput] = useState("");
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTone, setSelectedTone] = useState("balanced");
   const [selectedDepth, setSelectedDepth] = useState("moderate");
   const [deepThinking, setDeepThinking] = useState(false);
@@ -77,7 +79,24 @@ export function ChatInput({
     if (input.trim() && !isLoading) {
       onSend(input.trim());
       setInput("");
+      setUploadedFiles([]);
     }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      setUploadedFiles(prev => [...prev, ...Array.from(files)]);
+      setAddMenuOpen(false);
+      setUploadSubmenu(false);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -92,6 +111,37 @@ export function ChatInput({
 
   return (
     <div className="border border-border/60 rounded-2xl bg-card/80 backdrop-blur-sm shadow-elegant overflow-hidden">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        onChange={handleFileSelect}
+        className="hidden"
+        accept=".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.webp"
+      />
+      
+      {/* Uploaded files display */}
+      {uploadedFiles.length > 0 && (
+        <div className="px-4 pt-3 pb-1 flex flex-wrap gap-2">
+          {uploadedFiles.map((file, index) => (
+            <div
+              key={index}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border border-border/50 text-sm"
+            >
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="max-w-[150px] truncate">{file.name}</span>
+              <button
+                onClick={() => removeFile(index)}
+                className="h-4 w-4 rounded-full hover:bg-muted flex items-center justify-center"
+              >
+                <X className="h-3 w-3 text-muted-foreground" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      
       <Textarea
         value={input}
         onChange={(e) => setInput(e.target.value)}
@@ -133,7 +183,10 @@ export function ChatInput({
                     <span className="text-sm">Upload file</span>
                   </button>
                   <div className="h-px bg-border/50 my-1" />
-                  <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors">
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors"
+                  >
                     <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
                       <Upload className="h-3.5 w-3.5 text-blue-600" />
                     </div>
