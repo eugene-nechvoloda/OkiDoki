@@ -1,26 +1,21 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import {
   Plus,
   Sliders,
-  Zap,
   Send,
-  ChevronDown,
   Upload,
   Image,
   Link2,
   FolderOpen,
   Palette,
-  Sparkles,
   Globe,
   ChevronRight,
   ArrowLeft,
   Check,
   X,
   FileText,
-  Brain,
   GitBranch,
 } from "lucide-react";
 import {
@@ -54,12 +49,6 @@ const TONES = [
   { id: "creative", label: "Creative", description: "More exploratory" },
 ];
 
-const DEPTH_LEVELS = [
-  { id: "light", label: "Light", value: 0.3 },
-  { id: "moderate", label: "Moderate", value: 0.6 },
-  { id: "deep", label: "Deep", value: 0.9 },
-];
-
 const STRUCTURES = [
   { id: "single", label: "Single document", description: "One comprehensive PRD" },
   { id: "tree-2", label: "Tree (2 levels)", description: "Parent with child documents" },
@@ -76,10 +65,7 @@ export function ChatInput({
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTone, setSelectedTone] = useState("balanced");
-  const [selectedDepth, setSelectedDepth] = useState("moderate");
   const [selectedStructure, setSelectedStructure] = useState("single");
-  const [deepThinking, setDeepThinking] = useState(false);
-  const [webResearch, setWebResearch] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [toneSubmenu, setToneSubmenu] = useState(false);
   const [structureSubmenu, setStructureSubmenu] = useState(false);
@@ -118,7 +104,6 @@ export function ChatInput({
   };
 
   const currentTone = TONES.find((t) => t.id === selectedTone);
-  const currentDepth = DEPTH_LEVELS.find((d) => d.id === selectedDepth);
   const currentStructure = STRUCTURES.find((s) => s.id === selectedStructure);
 
   return (
@@ -379,91 +364,14 @@ export function ChatInput({
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </button>
-                  
-                  <div className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-accent/80 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="h-7 w-7 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-                        <Brain className="h-3.5 w-3.5 text-indigo-600" />
-                      </div>
-                      <div className="text-sm font-medium">Deep thinking</div>
-                    </div>
-                    <Switch
-                      checked={deepThinking}
-                      onCheckedChange={setDeepThinking}
-                      className="data-[state=checked]:bg-primary"
-                    />
-                  </div>
-
-                  <div className="h-px bg-border/50 my-1" />
-
-                  <div className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-accent/80 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="h-7 w-7 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-                        <Globe className="h-3.5 w-3.5 text-cyan-600" />
-                      </div>
-                      <div className="text-sm font-medium">Web research</div>
-                    </div>
-                    <Switch
-                      checked={webResearch}
-                      onCheckedChange={setWebResearch}
-                      className="data-[state=checked]:bg-primary"
-                    />
-                  </div>
-
-                  <div className="h-px bg-border/50 my-1" />
-
-                  <div className="px-3 py-2.5">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="h-7 w-7 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                        <Sparkles className="h-3.5 w-3.5 text-orange-600" />
-                      </div>
-                      <div className="text-sm font-medium">Research depth</div>
-                    </div>
-                    <div className="flex gap-1 ml-10">
-                      {DEPTH_LEVELS.map((depth) => (
-                        <button
-                          key={depth.id}
-                          onClick={() => setSelectedDepth(depth.id)}
-                          className={cn(
-                            "flex-1 py-1.5 text-xs font-medium rounded-lg transition-all",
-                            selectedDepth === depth.id
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted hover:bg-muted/80 text-muted-foreground"
-                          )}
-                        >
-                          {depth.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               )}
             </PopoverContent>
           </Popover>
 
-          {/* Quick toggle for deep thinking */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setDeepThinking(!deepThinking)}
-            className={cn(
-              "h-8 px-3 rounded-xl gap-1.5 text-xs font-medium transition-all",
-              deepThinking 
-                ? "bg-indigo-500/15 text-indigo-600 hover:bg-indigo-500/20" 
-                : "hover:bg-muted text-muted-foreground"
-            )}
-          >
-            <Zap className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Deep</span>
-          </Button>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Depth indicator pill */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/50 text-xs text-muted-foreground">
-            <span>Depth:</span>
-            <span className="font-medium text-foreground">{currentDepth?.value}</span>
-          </div>
 
           {/* Send button */}
           <Button
