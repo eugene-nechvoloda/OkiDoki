@@ -17,6 +17,7 @@ import {
   X,
   FileText,
   GitBranch,
+  LayoutTemplate,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -33,6 +34,7 @@ import {
 import type { PRDTemplate } from "@/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { BUILT_IN_TEMPLATES } from "@/data/templates";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -66,9 +68,11 @@ export function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTone, setSelectedTone] = useState("balanced");
   const [selectedStructure, setSelectedStructure] = useState("single");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [toneSubmenu, setToneSubmenu] = useState(false);
   const [structureSubmenu, setStructureSubmenu] = useState(false);
+  const [templateSubmenu, setTemplateSubmenu] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [uploadSubmenu, setUploadSubmenu] = useState(false);
 
@@ -105,6 +109,9 @@ export function ChatInput({
 
   const currentTone = TONES.find((t) => t.id === selectedTone);
   const currentStructure = STRUCTURES.find((s) => s.id === selectedStructure);
+  const currentTemplate = selectedTemplateId 
+    ? BUILT_IN_TEMPLATES.find((t) => t.id === selectedTemplateId) 
+    : null;
 
   return (
     <div className="border border-border/60 rounded-2xl bg-card/80 backdrop-blur-sm shadow-elegant overflow-hidden">
@@ -252,6 +259,7 @@ export function ChatInput({
             if (!open) {
               setToneSubmenu(false);
               setStructureSubmenu(false);
+              setTemplateSubmenu(false);
             }
           }}>
             <PopoverTrigger asChild>
@@ -331,6 +339,55 @@ export function ChatInput({
                     </button>
                   ))}
                 </div>
+              ) : templateSubmenu ? (
+                <div className="space-y-0.5">
+                  <button
+                    onClick={() => setTemplateSubmenu(false)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    <span className="text-sm">Template</span>
+                  </button>
+                  <div className="h-px bg-border/50 my-1" />
+                  <button
+                    onClick={() => {
+                      setSelectedTemplateId(null);
+                      setTemplateSubmenu(false);
+                    }}
+                    className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors"
+                  >
+                    <div>
+                      <div className="text-sm font-medium">Auto (LLM decides)</div>
+                      <div className="text-xs text-muted-foreground">AI picks the best format</div>
+                    </div>
+                    {selectedTemplateId === null && (
+                      <div className="h-5 w-5 rounded-full bg-primary/15 flex items-center justify-center">
+                        <Check className="h-3 w-3 text-primary" />
+                      </div>
+                    )}
+                  </button>
+                  <div className="h-px bg-border/50 my-1" />
+                  {BUILT_IN_TEMPLATES.map((template) => (
+                    <button
+                      key={template.id}
+                      onClick={() => {
+                        setSelectedTemplateId(template.id);
+                        setTemplateSubmenu(false);
+                      }}
+                      className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors"
+                    >
+                      <div>
+                        <div className="text-sm font-medium">{template.name}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-1">{template.description}</div>
+                      </div>
+                      {selectedTemplateId === template.id && (
+                        <div className="h-5 w-5 rounded-full bg-primary/15 flex items-center justify-center">
+                          <Check className="h-3 w-3 text-primary" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
               ) : (
                 <div className="space-y-0.5">
                   <button
@@ -360,6 +417,22 @@ export function ChatInput({
                       <div>
                         <div className="text-sm font-medium">Structure</div>
                         <div className="text-xs text-muted-foreground">{currentStructure?.label}</div>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+
+                  <button
+                    onClick={() => setTemplateSubmenu(true)}
+                    className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-7 w-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                        <LayoutTemplate className="h-3.5 w-3.5 text-violet-600" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">Template</div>
+                        <div className="text-xs text-muted-foreground">{currentTemplate?.name || "Auto (LLM decides)"}</div>
                       </div>
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
