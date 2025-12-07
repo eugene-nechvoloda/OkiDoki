@@ -50,3 +50,10 @@ export interface QuickAction {
   description: string;
   isPro?: boolean;
 }
+
+export interface ChatSettings {
+  tone: string;
+  docType: string;
+  hierarchy: string;
+  templateId: string | null;
+}

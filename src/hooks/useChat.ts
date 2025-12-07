@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
-import type { Message, Chat, PRDTemplate } from "@/types";
+import type { Message, Chat, PRDTemplate, ChatSettings } from "@/types";
 import { BUILT_IN_TEMPLATES } from "@/data/templates";
 
 const GENERATE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-prd`;
@@ -38,7 +38,7 @@ export function useChat() {
   }, [chats]);
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, settings: ChatSettings) => {
       let chat = currentChat;
       if (!chat) {
         chat = createNewChat();
@@ -67,6 +67,11 @@ export function useChat() {
       setIsLoading(true);
       setStreamingContent("");
 
+      // Get the template object if templateId is provided
+      const template = settings.templateId 
+        ? BUILT_IN_TEMPLATES.find(t => t.id === settings.templateId) || selectedTemplate
+        : null;
+
       try {
         const response = await fetch(GENERATE_URL, {
           method: "POST",
@@ -79,7 +84,12 @@ export function useChat() {
               role: m.role,
               content: m.content,
             })),
-            template: selectedTemplate,
+            template,
+            settings: {
+              tone: settings.tone,
+              docType: settings.docType,
+              hierarchy: settings.hierarchy,
+            },
           }),
         });
 
