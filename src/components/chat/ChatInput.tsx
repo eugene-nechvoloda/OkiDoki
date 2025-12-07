@@ -71,6 +71,7 @@ export function ChatInput({
   const [toolsOpen, setToolsOpen] = useState(false);
   const [toneSubmenu, setToneSubmenu] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [uploadSubmenu, setUploadSubmenu] = useState(false);
 
   const handleSubmit = () => {
     if (input.trim() && !isLoading) {
@@ -103,7 +104,10 @@ export function ChatInput({
       <div className="flex items-center justify-between px-3 py-2.5 bg-muted/30 border-t border-border/30">
         <div className="flex items-center gap-1.5">
           {/* Add/Attach button */}
-          <Popover open={addMenuOpen} onOpenChange={setAddMenuOpen}>
+          <Popover open={addMenuOpen} onOpenChange={(open) => {
+            setAddMenuOpen(open);
+            if (!open) setUploadSubmenu(false);
+          }}>
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
@@ -119,36 +123,67 @@ export function ChatInput({
               </Button>
             </PopoverTrigger>
             <PopoverContent align="start" className="w-56 p-1.5 rounded-xl" sideOffset={8}>
-              <div className="space-y-0.5">
-                <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors">
-                  <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                    <Upload className="h-3.5 w-3.5 text-blue-600" />
-                  </div>
-                  <span className="text-sm font-medium">Upload file</span>
-                </button>
-                <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors">
-                  <div className="h-7 w-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                    <Image className="h-3.5 w-3.5 text-violet-600" />
-                  </div>
-                  <span className="text-sm font-medium">Add image</span>
-                </button>
-                <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors">
-                  <div className="h-7 w-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                    <Link2 className="h-3.5 w-3.5 text-emerald-600" />
-                  </div>
-                  <span className="text-sm font-medium">Paste link</span>
-                </button>
-                <div className="h-px bg-border/50 my-1" />
-                <button className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="h-7 w-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                      <FolderOpen className="h-3.5 w-3.5 text-amber-600" />
+              {uploadSubmenu ? (
+                <div className="space-y-0.5">
+                  <button
+                    onClick={() => setUploadSubmenu(false)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    <span className="text-sm">Upload file</span>
+                  </button>
+                  <div className="h-px bg-border/50 my-1" />
+                  <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors">
+                    <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <Upload className="h-3.5 w-3.5 text-blue-600" />
                     </div>
-                    <span className="text-sm font-medium">From project</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </button>
-              </div>
+                    <span className="text-sm font-medium">From computer</span>
+                  </button>
+                  <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors">
+                    <div className="h-7 w-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                      <Globe className="h-3.5 w-3.5 text-emerald-600" />
+                    </div>
+                    <span className="text-sm font-medium">From Google Drive</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-0.5">
+                  <button 
+                    onClick={() => setUploadSubmenu(true)}
+                    className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                        <Upload className="h-3.5 w-3.5 text-blue-600" />
+                      </div>
+                      <span className="text-sm font-medium">Upload file</span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                  <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors">
+                    <div className="h-7 w-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                      <Image className="h-3.5 w-3.5 text-violet-600" />
+                    </div>
+                    <span className="text-sm font-medium">Add image</span>
+                  </button>
+                  <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors">
+                    <div className="h-7 w-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                      <Link2 className="h-3.5 w-3.5 text-emerald-600" />
+                    </div>
+                    <span className="text-sm font-medium">Paste link</span>
+                  </button>
+                  <div className="h-px bg-border/50 my-1" />
+                  <button className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="h-7 w-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                        <FolderOpen className="h-3.5 w-3.5 text-amber-600" />
+                      </div>
+                      <span className="text-sm font-medium">From project</span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </div>
+              )}
             </PopoverContent>
           </Popover>
 
