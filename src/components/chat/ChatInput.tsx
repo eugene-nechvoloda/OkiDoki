@@ -32,13 +32,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { PRDTemplate } from "@/types";
+import type { PRDTemplate, ChatSettings } from "@/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { BUILT_IN_TEMPLATES } from "@/data/templates";
 
 interface ChatInputProps {
-  onSend: (message: string) => void;
+  onSend: (message: string, settings: ChatSettings) => void;
   selectedTemplate?: PRDTemplate;
   onSelectTemplate: (template: PRDTemplate) => void;
   isLoading?: boolean;
@@ -85,7 +85,12 @@ export function ChatInput({
 
   const handleSubmit = () => {
     if (input.trim() && !isLoading) {
-      onSend(input.trim());
+      onSend(input.trim(), {
+        tone: selectedTone,
+        docType: selectedDocType,
+        hierarchy: selectedHierarchy,
+        templateId: selectedTemplateId,
+      });
       setInput("");
       setUploadedFiles([]);
     }

@@ -3,14 +3,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { QuickActions } from "./QuickActions";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
-import type { Message, PRDTemplate, QuickActionType } from "@/types";
+import type { Message, PRDTemplate, QuickActionType, ChatSettings } from "@/types";
 import { BUILT_IN_TEMPLATES } from "@/data/templates";
 
 interface ChatInterfaceProps {
   messages: Message[];
   selectedTemplate?: PRDTemplate;
   onSelectTemplate: (template: PRDTemplate) => void;
-  onSendMessage: (message: string) => void;
+  onSendMessage: (message: string, settings: ChatSettings) => void;
   isLoading: boolean;
   streamingContent?: string;
 }
@@ -45,7 +45,13 @@ export function ChatInterface({
       onSelectTemplate(BUILT_IN_TEMPLATES[0]);
     }
 
-    onSendMessage(prompts[type]);
+    // Use default settings for quick actions
+    onSendMessage(prompts[type], {
+      tone: "balanced",
+      docType: "single",
+      hierarchy: "1-level",
+      templateId: type === "write" ? BUILT_IN_TEMPLATES[0].id : null,
+    });
   };
 
   return (
