@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -17,6 +18,7 @@ import {
   FileStack,
   Layers,
   LayoutTemplate,
+  Plug,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -66,6 +68,7 @@ export function ChatInput({
   isLoading,
   placeholder = "Describe your product idea...",
 }: ChatInputProps) {
+  const navigate = useNavigate();
   const [input, setInput] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -247,6 +250,17 @@ export function ChatInput({
               )}
             </PopoverContent>
           </Popover>
+
+          {/* Integrations/Tools button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/integrations")}
+            className="h-8 w-8 rounded-xl transition-all hover:bg-muted"
+            title="Integrations"
+          >
+            <Plug className="h-4 w-4" />
+          </Button>
 
           {/* Settings/Config button */}
           <Popover open={toolsOpen} onOpenChange={(open) => {

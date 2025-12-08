@@ -14,6 +14,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   LogOut,
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Chat } from "@/types";
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { id: "documents", label: "Documents", icon: FileText, count: 0 },
   { id: "projects", label: "Projects", icon: FolderKanban },
   { id: "templates", label: "Templates", icon: LayoutTemplate },
+  { id: "integrations", label: "Integrations", icon: Plug },
 ];
 
 export function Sidebar({
@@ -54,6 +56,7 @@ export function Sidebar({
     if (location.pathname === "/projects") return "projects";
     if (location.pathname === "/templates") return "templates";
     if (location.pathname === "/documents") return "documents";
+    if (location.pathname === "/integrations") return "integrations";
     return "chats";
   };
 
@@ -64,6 +67,7 @@ export function Sidebar({
     else if (id === "projects") navigate("/projects");
     else if (id === "templates") navigate("/templates");
     else if (id === "documents") navigate("/documents");
+    else if (id === "integrations") navigate("/integrations");
     onNavigate(id);
   };
 
