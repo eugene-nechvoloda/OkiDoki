@@ -1,11 +1,25 @@
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Copy, Check, X, FileText, Save, Download } from "lucide-react";
-import { useState } from "react";
+import {
+  Copy,
+  Check,
+  X,
+  FileText,
+  Save,
+  Download,
+  History,
+  Sparkles,
+  ThumbsUp,
+  ThumbsDown,
+  RotateCcw,
+} from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
+import { generatePRD } from "@/services/api";
+import { cn } from "@/lib/utils";
 
 interface PRDPreviewProps {
   content: string;
@@ -15,18 +29,48 @@ interface PRDPreviewProps {
   onSaveToProject?: () => void;
 }
 
-export function PRDPreview({ content, title, onClose, isStreaming, onSaveToProject }: PRDPreviewProps) {
+interface Version {
+  content: string;
+  timestamp: number;
+}
+
+export function PRDPreview({
+  content,
+  title,
+  onClose,
+  isStreaming,
+  onSaveToProject
+}: PRDPreviewProps) {
   const [copied, setCopied] = useState(false);
+  const [versions, setVersions] = useState<Version[]>([{ content, timestamp: Date.now() }]);
+  const [currentVersionIndex, setCurrentVersionIndex] = useState(0);
+  const [selectedText, setSelectedText] = useState("");
+  const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regeneratedText, setRegeneratedText] = useState("");
+  const [showRegenerateUI, setShowRegenerateUI] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Update versions when content changes
+  useEffect(() => {
+    if (content && content !== versions[currentVersionIndex]?.content) {
+      const newVersion = { content, timestamp: Date.now() };
+      setVersions(prev => [...prev.slice(0, currentVersionIndex + 1), newVersion]);
+      setCurrentVersionIndex(prev => prev + 1);
+    }
+  }, [content]);
+
+  const currentContent = versions[currentVersionIndex]?.content || content;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(content);
+    await navigator.clipboard.writeText(currentContent);
     setCopied(true);
     toast.success("PRD copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownload = () => {
-    const blob = new Blob([content], { type: "text/markdown" });
+    const blob = new Blob([currentContent], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -36,6 +80,110 @@ export function PRDPreview({ content, title, onClose, isStreaming, onSaveToProje
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     toast.success("PRD downloaded");
+  };
+
+  // Handle text selection
+  const handleTextSelection = () => {
+    const selection = window.getSelection();
+    const selected = selection?.toString().trim();
+
+    if (selected && selected.length > 0) {
+      setSelectedText(selected);
+
+      // Get selection position in content
+      if (contentRef.current) {
+        const range = selection?.getRangeAt(0);
+        if (range) {
+          const preSelectionRange = range.cloneRange();
+          preSelectionRange.selectNodeContents(contentRef.current);
+          preSelectionRange.setEnd(range.startContainer, range.startOffset);
+          const start = preSelectionRange.toString().length;
+          const end = start + selected.length;
+          setSelectionRange({ start, end });
+        }
+      }
+    } else {
+      setSelectedText("");
+      setSelectionRange(null);
+      setShowRegenerateUI(false);
+    }
+  };
+
+  // Regenerate selected text with AI
+  const handleRegenerate = async () => {
+    if (!selectedText) return;
+
+    setIsRegenerating(true);
+    setRegeneratedText("");
+
+    try {
+      const prompt = `Rewrite and improve the following text while maintaining its meaning and context:\n\n${selectedText}\n\nProvide ONLY the rewritten text, without any additional explanation or context.`;
+
+      let fullResponse = "";
+      await generatePRD(
+        {
+          messages: [{ role: "user", content: prompt }],
+          settings: { tone: "balanced", docType: "single", hierarchy: "1-level" },
+        },
+        (chunk) => {
+          fullResponse += chunk;
+          setRegeneratedText(fullResponse);
+        }
+      );
+
+      setShowRegenerateUI(true);
+    } catch (error) {
+      console.error("Failed to regenerate text:", error);
+      toast.error("Failed to regenerate text");
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  // Accept regenerated text
+  const handleAccept = () => {
+    if (!selectionRange || !regeneratedText) return;
+
+    const newContent =
+      currentContent.slice(0, selectionRange.start) +
+      regeneratedText +
+      currentContent.slice(selectionRange.end);
+
+    const newVersion = { content: newContent, timestamp: Date.now() };
+    setVersions(prev => [...prev.slice(0, currentVersionIndex + 1), newVersion]);
+    setCurrentVersionIndex(prev => prev + 1);
+
+    setShowRegenerateUI(false);
+    setSelectedText("");
+    setSelectionRange(null);
+    setRegeneratedText("");
+    toast.success("Changes accepted");
+
+    // Clear selection
+    window.getSelection()?.removeAllRanges();
+  };
+
+  // Decline regenerated text
+  const handleDecline = () => {
+    setShowRegenerateUI(false);
+    setRegeneratedText("");
+    toast.info("Changes declined");
+  };
+
+  // Rollback to previous version
+  const handleRollback = () => {
+    if (currentVersionIndex > 0) {
+      setCurrentVersionIndex(prev => prev - 1);
+      toast.success("Rolled back to previous version");
+    }
+  };
+
+  // Roll forward to next version
+  const handleRollForward = () => {
+    if (currentVersionIndex < versions.length - 1) {
+      setCurrentVersionIndex(prev => prev + 1);
+      toast.success("Restored to next version");
+    }
   };
 
   // Custom components for better styling
@@ -172,9 +320,40 @@ export function PRDPreview({ content, title, onClose, isStreaming, onSaveToProje
               Writing...
             </span>
           )}
+          {versions.length > 1 && (
+            <span className="text-xs text-muted-foreground">
+              v{currentVersionIndex + 1}/{versions.length}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
-          {onSaveToProject && content && (
+          {/* Version history controls */}
+          {versions.length > 1 && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={handleRollback}
+                disabled={currentVersionIndex === 0}
+                title="Previous version"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={handleRollForward}
+                disabled={currentVersionIndex === versions.length - 1}
+                title="Next version"
+              >
+                <History className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+
+          {onSaveToProject && currentContent && (
             <Button
               variant="ghost"
               size="sm"
@@ -192,7 +371,7 @@ export function PRDPreview({ content, title, onClose, isStreaming, onSaveToProje
             className="h-7 w-7"
             onClick={handleDownload}
             title="Download as Markdown"
-            disabled={!content}
+            disabled={!currentContent}
           >
             <Download className="h-4 w-4" />
           </Button>
@@ -201,7 +380,7 @@ export function PRDPreview({ content, title, onClose, isStreaming, onSaveToProje
             size="icon"
             className="h-7 w-7"
             onClick={handleCopy}
-            disabled={!content}
+            disabled={!currentContent}
           >
             {copied ? (
               <Check className="h-4 w-4 text-green-500" />
@@ -220,15 +399,79 @@ export function PRDPreview({ content, title, onClose, isStreaming, onSaveToProje
         </div>
       </div>
 
+      {/* Selection toolbar */}
+      {selectedText && !showRegenerateUI && (
+        <div className="px-4 py-2 bg-primary/5 border-b border-border flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">
+            {selectedText.length} characters selected
+          </span>
+          <Button
+            size="sm"
+            onClick={handleRegenerate}
+            disabled={isRegenerating}
+            className="gradient-brand text-primary-foreground"
+          >
+            <Sparkles className="h-3 w-3 mr-1" />
+            {isRegenerating ? "Regenerating..." : "Regenerate with AI"}
+          </Button>
+        </div>
+      )}
+
+      {/* Regenerate comparison UI */}
+      {showRegenerateUI && (
+        <div className="px-4 py-3 bg-muted/50 border-b border-border space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold">AI Suggestion</span>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDecline}
+                className="h-7"
+              >
+                <ThumbsDown className="h-3 w-3 mr-1" />
+                Decline
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleAccept}
+                className="gradient-brand text-primary-foreground h-7"
+              >
+                <ThumbsUp className="h-3 w-3 mr-1" />
+                Accept
+              </Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Original:</span>
+              <div className="p-2 bg-card rounded border border-border text-sm">
+                {selectedText}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Regenerated:</span>
+              <div className="p-2 bg-primary/5 rounded border border-primary/20 text-sm">
+                {regeneratedText || "Generating..."}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       <ScrollArea className="flex-1">
-        {content ? (
-          <article className="px-6 py-6 max-w-4xl mx-auto">
+        {currentContent ? (
+          <article
+            ref={contentRef}
+            className="px-6 py-6 max-w-4xl mx-auto select-text"
+            onMouseUp={handleTextSelection}
+          >
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={components}
             >
-              {content}
+              {currentContent}
             </ReactMarkdown>
           </article>
         ) : (
