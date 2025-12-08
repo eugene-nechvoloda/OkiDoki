@@ -7,6 +7,7 @@ import type {
   PRDDocument,
   PRDDocumentInsert,
   FileAttachment,
+  Template,
 } from '@/types/database';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -251,6 +252,48 @@ export async function processFile(
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || 'Failed to process file');
+  }
+
+  return response.json();
+}
+
+// =====================================================
+// TEMPLATES API
+// =====================================================
+
+export interface GetTemplatesResponse {
+  templates: Template[];
+}
+
+export async function getTemplates(params?: {
+  limit?: number;
+  visibility?: string;
+}): Promise<GetTemplatesResponse> {
+  const headers = await getAuthHeaders();
+  const queryParams = new URLSearchParams();
+
+  if (params?.limit) queryParams.set('limit', params.limit.toString());
+  if (params?.visibility) queryParams.set('visibility', params.visibility);
+
+  const response = await fetch(
+    `${SUPABASE_URL}/functions/v1/get-templates?${queryParams}`,
+    { headers }
+  );
+
+  if (!response.ok) {
+    // Fallback: query directly from Supabase if edge function doesn't exist
+    try {
+      const { data, error } = await supabase
+        .from('templates')
+        .select('*')
+        .order('is_custom', { ascending: true })
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      return { templates: data || [] };
+    } catch (err) {
+      throw new Error('Failed to fetch templates');
+    }
   }
 
   return response.json();
