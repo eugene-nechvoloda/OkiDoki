@@ -1,19 +1,53 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import type { Message, Chat, PRDTemplate, ChatSettings } from "@/types";
 import { BUILT_IN_TEMPLATES } from "@/data/templates";
-
-const GENERATE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-prd`;
+import { saveChat, getChats, saveDocument, generatePRD } from "@/services/api";
+import { useAuth } from "@/providers/AuthProvider";
 
 export function useChat() {
+  const { user } = useAuth();
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChat, setCurrentChat] = useState<Chat | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [streamingContent, setStreamingContent] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<PRDTemplate>(
     BUILT_IN_TEMPLATES[0]
   );
   const [prdContent, setPrdContent] = useState("");
+
+  // Load chat history on mount
+  useEffect(() => {
+    if (!user) return;
+
+    async function loadChatHistory() {
+      try {
+        setIsLoadingHistory(true);
+        const { chats: dbChats } = await getChats({ limit: 50 });
+
+        // Convert database chats to app format
+        const convertedChats: Chat[] = dbChats.map((dbChat) => ({
+          id: dbChat.id,
+          title: dbChat.title || "Untitled Chat",
+          messages: [], // Messages will be loaded when chat is selected
+          createdAt: new Date(dbChat.created_at),
+          updatedAt: new Date(dbChat.updated_at),
+          projectId: dbChat.project_id || undefined,
+          settings: dbChat.settings_json || {},
+        }));
+
+        setChats(convertedChats);
+      } catch (error) {
+        console.error("Error loading chat history:", error);
+        toast.error("Failed to load chat history");
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    }
+
+    loadChatHistory();
+  }, [user]);
 
   const createNewChat = useCallback(() => {
     const newChat: Chat = {
@@ -39,6 +73,11 @@ export function useChat() {
 
   const sendMessage = useCallback(
     async (content: string, settings: ChatSettings) => {
+      if (!user) {
+        toast.error("Please sign in to continue");
+        return;
+      }
+
       let chat = currentChat;
       if (!chat) {
         chat = createNewChat();
@@ -68,81 +107,37 @@ export function useChat() {
       setStreamingContent("");
 
       // Get the template object if templateId is provided
-      const template = settings.templateId 
+      const template = settings.templateId
         ? BUILT_IN_TEMPLATES.find(t => t.id === settings.templateId) || selectedTemplate
         : null;
 
       try {
-        const response = await fetch(GENERATE_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
+        let fullContent = "";
+
+        // Use the new generatePRD API
+        await generatePRD(
+          {
             messages: updatedChat.messages.map((m) => ({
               role: m.role,
               content: m.content,
             })),
-            template,
+            template: template || undefined,
             settings: {
               tone: settings.tone,
               docType: settings.docType,
               hierarchy: settings.hierarchy,
             },
-          }),
-        });
+          },
+          (chunk: string) => {
+            fullContent += chunk;
+            setStreamingContent(fullContent);
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `Error: ${response.status}`);
-        }
-
-        if (!response.body) {
-          throw new Error("No response body");
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let fullContent = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-
-          let newlineIndex: number;
-          while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
-            let line = buffer.slice(0, newlineIndex);
-            buffer = buffer.slice(newlineIndex + 1);
-
-            if (line.endsWith("\r")) line = line.slice(0, -1);
-            if (line.startsWith(":") || line.trim() === "") continue;
-            if (!line.startsWith("data: ")) continue;
-
-            const jsonStr = line.slice(6).trim();
-            if (jsonStr === "[DONE]") break;
-
-            try {
-              const parsed = JSON.parse(jsonStr);
-              const deltaContent = parsed.choices?.[0]?.delta?.content as string | undefined;
-              if (deltaContent) {
-                fullContent += deltaContent;
-                setStreamingContent(fullContent);
-                
-                // Update PRD content for preview
-                if (fullContent.includes("# ") || fullContent.includes("## ")) {
-                  setPrdContent(fullContent);
-                }
-              }
-            } catch {
-              buffer = line + "\n" + buffer;
-              break;
+            // Update PRD content for preview
+            if (fullContent.includes("# ") || fullContent.includes("## ")) {
+              setPrdContent(fullContent);
             }
           }
-        }
+        );
 
         // Add assistant message
         const assistantMessage: Message = {
@@ -164,6 +159,39 @@ export function useChat() {
         );
         setStreamingContent("");
         setPrdContent(fullContent);
+
+        // Save chat to database
+        try {
+          const { chat: savedChat } = await saveChat({
+            chatId: finalChat.id,
+            title: finalChat.title,
+            projectId: finalChat.projectId,
+            settings: settings,
+            messages: finalChat.messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+          });
+
+          console.log("Chat saved successfully:", savedChat.id);
+
+          // Auto-save as PRD document if it looks like a PRD
+          if (fullContent.length > 500 && (fullContent.includes("# ") || fullContent.includes("## "))) {
+            const { document } = await saveDocument({
+              title: finalChat.title,
+              contentMarkdown: fullContent,
+              status: "draft",
+              visibility: "private",
+              templateId: template?.id,
+            });
+
+            console.log("PRD document saved:", document.id);
+            toast.success("PRD saved successfully");
+          }
+        } catch (saveError) {
+          console.error("Error saving chat:", saveError);
+          toast.error("Failed to save chat");
+        }
       } catch (error) {
         console.error("Error:", error);
         toast.error(error instanceof Error ? error.message : "Failed to generate response");
@@ -171,13 +199,14 @@ export function useChat() {
         setIsLoading(false);
       }
     },
-    [currentChat, createNewChat, selectedTemplate]
+    [currentChat, createNewChat, selectedTemplate, user]
   );
 
   return {
     chats,
     currentChat,
     isLoading,
+    isLoadingHistory,
     streamingContent,
     selectedTemplate,
     prdContent,

@@ -12,9 +12,11 @@ import {
   Settings,
   PanelLeftClose,
   PanelLeft,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Chat } from "@/types";
+import { useAuth } from "@/providers/AuthProvider";
 
 interface SidebarProps {
   chats: Chat[];
@@ -42,6 +44,7 @@ export function Sidebar({
   isCollapsed,
   onToggleCollapse,
 }: SidebarProps) {
+  const { user, signOut } = useAuth();
   const [activeNav, setActiveNav] = useState("chats");
 
   const handleNavClick = (id: string) => {
@@ -197,15 +200,33 @@ export function Sidebar({
 
       {/* User */}
       <div className="p-4 border-t border-sidebar-border flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-          <span className="text-sm font-medium">E</span>
-        </div>
+        {user?.user_metadata?.avatar_url ? (
+          <img
+            src={user.user_metadata.avatar_url}
+            alt={user.user_metadata.name || user.email || "User"}
+            className="w-8 h-8 rounded-full"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+            <span className="text-sm font-medium">
+              {(user?.user_metadata?.name || user?.email || "U").charAt(0).toUpperCase()}
+            </span>
+          </div>
+        )}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">Eugene</p>
+          <p className="text-sm font-medium truncate">
+            {user?.user_metadata?.name || user?.email?.split("@")[0] || "User"}
+          </p>
           <p className="text-xs text-muted-foreground">Free Trial</p>
         </div>
-        <Button variant="ghost" size="icon" className="text-muted-foreground">
-          <Settings className="h-4 w-4" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => signOut()}
+          title="Sign out"
+        >
+          <LogOut className="h-4 w-4" />
         </Button>
       </div>
     </div>
