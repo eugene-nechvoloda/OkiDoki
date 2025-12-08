@@ -6,7 +6,7 @@ import { useChat } from "@/hooks/useChat";
 
 const Index = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
+  const [previewClosed, setPreviewClosed] = useState(false);
 
   const {
     chats,
@@ -21,8 +21,8 @@ const Index = () => {
     sendMessage,
   } = useChat();
 
-  // Show preview when we have PRD content
-  const shouldShowPreview = showPreview || (prdContent && prdContent.length > 100);
+  // Show preview when we have PRD content, unless manually closed
+  const shouldShowPreview = !previewClosed && prdContent && prdContent.length > 100;
 
   return (
     <div className="h-screen flex bg-background overflow-hidden">
@@ -57,7 +57,7 @@ const Index = () => {
             <PRDPreview
               content={prdContent || streamingContent}
               title={currentChat?.title}
-              onClose={() => setShowPreview(false)}
+              onClose={() => setPreviewClosed(true)}
               isStreaming={isLoading && !!streamingContent}
             />
           </div>
