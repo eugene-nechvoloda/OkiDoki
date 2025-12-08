@@ -8,6 +8,7 @@ import type {
   PRDDocumentInsert,
   FileAttachment,
   Template,
+  Project,
 } from '@/types/database';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -297,6 +298,101 @@ export async function getTemplates(params?: {
   }
 
   return response.json();
+}
+
+// =====================================================
+// PROJECTS API
+// =====================================================
+
+export interface GetProjectsResponse {
+  projects: Project[];
+}
+
+export interface CreateProjectRequest {
+  name: string;
+  description?: string;
+  visibility?: 'private' | 'public';
+}
+
+export interface UpdateProjectRequest {
+  projectId: string;
+  name?: string;
+  description?: string;
+  visibility?: 'private' | 'public';
+}
+
+export async function getProjects(params?: {
+  limit?: number;
+  search?: string;
+}): Promise<GetProjectsResponse> {
+  try {
+    let query = supabase
+      .from('projects')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (params?.limit) {
+      query = query.limit(params.limit);
+    }
+
+    if (params?.search) {
+      query = query.ilike('name', `%${params.search}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+    return { projects: data || [] };
+  } catch (err) {
+    console.error('Failed to fetch projects:', err);
+    return { projects: [] };
+  }
+}
+
+export async function createProject(
+  data: CreateProjectRequest
+): Promise<{ project: Project }> {
+  const { data: project, error } = await supabase
+    .from('projects')
+    .insert({
+      name: data.name,
+      description: data.description,
+      visibility: data.visibility || 'private',
+      owner_id: (await supabase.auth.getUser()).data.user?.id || '',
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { project };
+}
+
+export async function updateProject(
+  data: UpdateProjectRequest
+): Promise<{ project: Project }> {
+  const updateData: any = {};
+  if (data.name) updateData.name = data.name;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.visibility) updateData.visibility = data.visibility;
+
+  const { data: project, error } = await supabase
+    .from('projects')
+    .update(updateData)
+    .eq('id', data.projectId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { project };
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  const { error } = await supabase
+    .from('projects')
+    .delete()
+    .eq('id', projectId);
+
+  if (error) throw error;
 }
 
 // =====================================================

@@ -1,16 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { PRDPreview } from "@/components/prd/PRDPreview";
 import { useChat } from "@/hooks/useChat";
-import { saveDocument } from "@/services/api";
+import { saveDocument, getProjects } from "@/services/api";
+import type { Project } from "@/types/database";
 import { toast } from "sonner";
 
 const Index = () => {
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [previewClosed, setPreviewClosed] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   const {
     chats,
@@ -25,11 +27,25 @@ const Index = () => {
     sendMessage,
   } = useChat();
 
+  // Load projects on mount
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
+  async function loadProjects() {
+    try {
+      const { projects: proj } = await getProjects({ limit: 100 });
+      setProjects(proj);
+    } catch (error) {
+      console.error("Failed to load projects:", error);
+    }
+  }
+
   // Show preview when we have PRD content, unless manually closed
   const shouldShowPreview = !previewClosed && prdContent && prdContent.length > 100;
 
   // Handle saving PRD to project
-  const handleSaveToProject = async () => {
+  const handleSaveToProject = async (projectId?: string) => {
     if (!prdContent || prdContent.length < 50) {
       toast.error("No content to save");
       return;
@@ -41,17 +57,18 @@ const Index = () => {
         contentMarkdown: prdContent,
         status: "draft",
         visibility: "private",
+        projectId: projectId || undefined,
       });
 
-      toast.success("PRD saved to Projects successfully");
+      toast.success("PRD saved successfully");
 
-      // Optionally navigate to projects page after a delay
+      // Navigate to projects page
       setTimeout(() => {
         navigate("/projects");
       }, 1000);
     } catch (error) {
       console.error("Failed to save PRD:", error);
-      toast.error("Failed to save PRD to Projects");
+      toast.error("Failed to save PRD");
     }
   };
 
@@ -91,6 +108,7 @@ const Index = () => {
               onClose={() => setPreviewClosed(true)}
               isStreaming={isLoading && !!streamingContent}
               onSaveToProject={handleSaveToProject}
+              projects={projects}
             />
           </div>
         )}

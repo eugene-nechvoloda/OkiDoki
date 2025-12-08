@@ -1,6 +1,20 @@
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Copy,
   Check,
   X,
@@ -12,6 +26,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   RotateCcw,
+  FolderKanban,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -20,13 +35,15 @@ import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import { generatePRD } from "@/services/api";
 import { cn } from "@/lib/utils";
+import type { Project } from "@/types/database";
 
 interface PRDPreviewProps {
   content: string;
   title?: string;
   onClose: () => void;
   isStreaming?: boolean;
-  onSaveToProject?: () => void;
+  onSaveToProject?: (projectId?: string) => void;
+  projects?: Project[];
 }
 
 interface Version {
@@ -39,7 +56,8 @@ export function PRDPreview({
   title,
   onClose,
   isStreaming,
-  onSaveToProject
+  onSaveToProject,
+  projects = [],
 }: PRDPreviewProps) {
   const [copied, setCopied] = useState(false);
   const [versions, setVersions] = useState<Version[]>([{ content, timestamp: Date.now() }]);
@@ -50,6 +68,8 @@ export function PRDPreview({
   const [regeneratedText, setRegeneratedText] = useState("");
   const [showRegenerateUI, setShowRegenerateUI] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [showProjectDialog, setShowProjectDialog] = useState(false);
+  const [selectedProjectForSave, setSelectedProjectForSave] = useState<string | undefined>();
 
   // Update versions when content changes
   useEffect(() => {
@@ -358,7 +378,7 @@ export function PRDPreview({
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs"
-              onClick={onSaveToProject}
+              onClick={() => setShowProjectDialog(true)}
               title="Save to Project"
             >
               <Save className="h-3 w-3 mr-1" />
@@ -486,6 +506,70 @@ export function PRDPreview({
           </div>
         )}
       </ScrollArea>
+
+      {/* Project Selection Dialog */}
+      <Dialog open={showProjectDialog} onOpenChange={setShowProjectDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save PRD to Project</DialogTitle>
+            <DialogDescription>
+              Choose a project or save without a project
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {projects.length > 0 ? (
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Select Project (Optional)
+                </label>
+                <Select
+                  value={selectedProjectForSave}
+                  onValueChange={setSelectedProjectForSave}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No project (save to root)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No project (save to root)</SelectItem>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        <div className="flex items-center gap-2">
+                          <FolderKanban className="h-4 w-4" />
+                          {project.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                No projects yet. The PRD will be saved to your root documents.
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowProjectDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  const projectId = selectedProjectForSave === "none" ? undefined : selectedProjectForSave;
+                  onSaveToProject?.(projectId);
+                  setShowProjectDialog(false);
+                  setSelectedProjectForSave(undefined);
+                }}
+                className="gradient-brand text-primary-foreground"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Save PRD
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
