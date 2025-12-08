@@ -1,4 +1,20 @@
-project_id = "itaacfxqowbweibgxbqo"
+project_id = "YOUR-PROJECT-ID-HERE"
 
+# Edge Functions Configuration
 [functions.generate-prd]
-verify_jwt = false
+verify_jwt = true
+
+[functions.save-chat]
+verify_jwt = true
+
+[functions.get-chats]
+verify_jwt = true
+
+[functions.save-document]
+verify_jwt = true
+
+[functions.get-documents]
+verify_jwt = true
+
+[functions.process-file]
+verify_jwt = true
