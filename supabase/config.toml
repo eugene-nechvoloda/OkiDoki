@@ -1,4 +1,4 @@
-project_id = "YOUR-PROJECT-ID-HERE"
+project_id = "mlirwabkxjvleutcehae"
 
 # Edge Functions Configuration
 [functions.generate-prd]
