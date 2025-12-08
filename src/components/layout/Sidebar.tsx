@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -45,10 +46,24 @@ export function Sidebar({
   onToggleCollapse,
 }: SidebarProps) {
   const { user, signOut } = useAuth();
-  const [activeNav, setActiveNav] = useState("chats");
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Determine active nav based on current route
+  const getActiveNav = () => {
+    if (location.pathname === "/projects") return "projects";
+    if (location.pathname === "/templates") return "templates";
+    if (location.pathname === "/documents") return "documents";
+    return "chats";
+  };
+
+  const activeNav = getActiveNav();
 
   const handleNavClick = (id: string) => {
-    setActiveNav(id);
+    if (id === "chats") navigate("/");
+    else if (id === "projects") navigate("/projects");
+    else if (id === "templates") navigate("/templates");
+    else if (id === "documents") navigate("/documents");
     onNavigate(id);
   };
 
