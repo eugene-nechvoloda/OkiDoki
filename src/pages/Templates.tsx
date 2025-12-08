@@ -4,6 +4,23 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   LayoutTemplate,
   Plus,
@@ -11,9 +28,13 @@ import {
   FileText,
   CheckCircle2,
   ArrowRight,
+  Edit,
+  Trash2,
+  MoreHorizontal,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getTemplates } from "@/services/api";
+import { getTemplates, createTemplate, updateTemplate, deleteTemplate } from "@/services/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { useChat } from "@/hooks/useChat";
 import type { Template } from "@/types/database";
@@ -30,6 +51,13 @@ export default function Templates() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
+  // Template creation/edit state
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
+  const [templateName, setTemplateName] = useState("");
+  const [templateDescription, setTemplateDescription] = useState("");
+  const [templateSections, setTemplateSections] = useState<string[]>([""]);
+
   // Load templates on mount
   useEffect(() => {
     loadTemplates();
@@ -40,7 +68,7 @@ export default function Templates() {
 
     try {
       setLoading(true);
-      const { templates: tmpl } = await getTemplates({ limit: 50 });
+      const { templates: tmpl } = await getTemplates({ limit: 100 });
       setTemplates(tmpl);
     } catch (error) {
       console.error("Failed to load templates:", error);
@@ -60,6 +88,97 @@ export default function Templates() {
   // Separate built-in and custom templates
   const builtInTemplates = filteredTemplates.filter((t) => !t.is_custom);
   const customTemplates = filteredTemplates.filter((t) => t.is_custom);
+
+  const handleCreateTemplate = async () => {
+    if (!templateName.trim()) {
+      toast.error("Template name is required");
+      return;
+    }
+
+    const cleanSections = templateSections.filter((s) => s.trim().length > 0);
+    if (cleanSections.length === 0) {
+      toast.error("At least one section is required");
+      return;
+    }
+
+    try {
+      if (editingTemplate) {
+        await updateTemplate({
+          templateId: editingTemplate.id,
+          name: templateName,
+          description: templateDescription,
+          sections: cleanSections,
+        });
+        toast.success("Template updated successfully");
+      } else {
+        await createTemplate({
+          name: templateName,
+          description: templateDescription,
+          sections: cleanSections,
+        });
+        toast.success("Template created successfully");
+      }
+
+      setShowTemplateDialog(false);
+      resetTemplateForm();
+      await loadTemplates();
+    } catch (error) {
+      console.error("Failed to save template:", error);
+      toast.error("Failed to save template");
+    }
+  };
+
+  const handleEditTemplate = (template: Template) => {
+    setEditingTemplate(template);
+    setTemplateName(template.name);
+    setTemplateDescription(template.description || "");
+    const sections = Array.isArray(template.sections_json)
+      ? template.sections_json
+      : [];
+    setTemplateSections(sections.length > 0 ? sections as string[] : [""]);
+    setShowTemplateDialog(true);
+  };
+
+  const handleDeleteTemplate = async (templateId: string, isCustom: boolean) => {
+    if (!isCustom) {
+      toast.error("Cannot delete built-in templates");
+      return;
+    }
+
+    if (!confirm("Are you sure you want to delete this template?")) return;
+
+    try {
+      await deleteTemplate(templateId);
+      toast.success("Template deleted successfully");
+      await loadTemplates();
+    } catch (error) {
+      console.error("Failed to delete template:", error);
+      toast.error("Failed to delete template");
+    }
+  };
+
+  const resetTemplateForm = () => {
+    setEditingTemplate(null);
+    setTemplateName("");
+    setTemplateDescription("");
+    setTemplateSections([""]);
+  };
+
+  const addSection = () => {
+    setTemplateSections([...templateSections, ""]);
+  };
+
+  const removeSection = (index: number) => {
+    if (templateSections.length > 1) {
+      setTemplateSections(templateSections.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateSection = (index: number, value: string) => {
+    const newSections = [...templateSections];
+    newSections[index] = value;
+    setTemplateSections(newSections);
+  };
 
   // Handle using a template
   const handleUseTemplate = (template: Template) => {
@@ -109,16 +228,48 @@ export default function Templates() {
               {!template.is_custom && (
                 <span className="text-xs text-primary font-medium">Built-in</span>
               )}
+              {template.is_custom && (
+                <span className="text-xs text-green-600 font-medium">Custom</span>
+              )}
             </div>
           </div>
-          <Button
-            size="sm"
-            onClick={() => handleUseTemplate(template)}
-            className="gradient-brand text-primary-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-          >
-            <ArrowRight className="h-4 w-4 mr-1" />
-            Use
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => handleUseTemplate(template)}
+              className="gradient-brand text-primary-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ArrowRight className="h-4 w-4 mr-1" />
+              Use
+            </Button>
+            {template.is_custom && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleEditTemplate(template)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => handleDeleteTemplate(template.id, template.is_custom)}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
 
         <p className="text-sm text-muted-foreground mb-4">
@@ -168,7 +319,7 @@ export default function Templates() {
           if (view === "chats") navigate("/");
           if (view === "projects") navigate("/projects");
           if (view === "templates") navigate("/templates");
-          if (view === "documents") navigate("/documents");
+          if (view === "integrations") navigate("/integrations");
         }}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -185,13 +336,103 @@ export default function Templates() {
                 Choose a template to structure your product requirements
               </p>
             </div>
-            <Button
-              onClick={() => toast.info("Custom templates coming soon")}
-              variant="outline"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Custom Template
-            </Button>
+            <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+              <DialogTrigger asChild>
+                <Button
+                  className="gradient-brand text-primary-foreground"
+                  onClick={resetTemplateForm}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Custom Template
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingTemplate ? "Edit Template" : "Create Custom Template"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {editingTemplate
+                      ? "Update your template details"
+                      : "Create a custom template with your own sections"}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="template-name">Template Name</Label>
+                    <Input
+                      id="template-name"
+                      value={templateName}
+                      onChange={(e) => setTemplateName(e.target.value)}
+                      placeholder="My Custom PRD Template"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="template-description">Description (Optional)</Label>
+                    <Textarea
+                      id="template-description"
+                      value={templateDescription}
+                      onChange={(e) => setTemplateDescription(e.target.value)}
+                      placeholder="Describe what this template is for..."
+                      className="mt-1"
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <Label>Template Sections</Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Define the sections that should be included in PRDs using this template
+                    </p>
+                    <div className="space-y-2">
+                      {templateSections.map((section, index) => (
+                        <div key={index} className="flex gap-2">
+                          <Input
+                            value={section}
+                            onChange={(e) => updateSection(index, e.target.value)}
+                            placeholder={`Section ${index + 1} (e.g., Executive Summary)`}
+                          />
+                          {templateSections.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeSection(index)}
+                              type="button"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={addSection}
+                        type="button"
+                        className="w-full"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Section
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowTemplateDialog(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleCreateTemplate}
+                      className="gradient-brand text-primary-foreground"
+                    >
+                      {editingTemplate ? "Update Template" : "Create Template"}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Search */}

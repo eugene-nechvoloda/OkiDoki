@@ -300,6 +300,70 @@ export async function getTemplates(params?: {
   return response.json();
 }
 
+export interface CreateTemplateRequest {
+  name: string;
+  description?: string;
+  sections: string[];
+  visibility?: 'private' | 'public';
+}
+
+export interface UpdateTemplateRequest {
+  templateId: string;
+  name?: string;
+  description?: string;
+  sections?: string[];
+  visibility?: 'private' | 'public';
+}
+
+export async function createTemplate(
+  data: CreateTemplateRequest
+): Promise<{ template: Template }> {
+  const { data: template, error } = await supabase
+    .from('templates')
+    .insert({
+      name: data.name,
+      description: data.description,
+      sections_json: data.sections,
+      is_custom: true,
+      visibility: data.visibility || 'private',
+      owner_id: (await supabase.auth.getUser()).data.user?.id || '',
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { template };
+}
+
+export async function updateTemplate(
+  data: UpdateTemplateRequest
+): Promise<{ template: Template }> {
+  const updateData: any = {};
+  if (data.name) updateData.name = data.name;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.sections) updateData.sections_json = data.sections;
+  if (data.visibility) updateData.visibility = data.visibility;
+
+  const { data: template, error } = await supabase
+    .from('templates')
+    .update(updateData)
+    .eq('id', data.templateId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { template };
+}
+
+export async function deleteTemplate(templateId: string): Promise<void> {
+  const { error } = await supabase
+    .from('templates')
+    .delete()
+    .eq('id', templateId);
+
+  if (error) throw error;
+}
+
 // =====================================================
 // PROJECTS API
 // =====================================================
