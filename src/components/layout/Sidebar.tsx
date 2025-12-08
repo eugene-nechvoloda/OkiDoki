@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -12,9 +13,12 @@ import {
   Settings,
   PanelLeftClose,
   PanelLeft,
+  LogOut,
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Chat } from "@/types";
+import { useAuth } from "@/providers/AuthProvider";
 
 interface SidebarProps {
   chats: Chat[];
@@ -31,6 +35,7 @@ const NAV_ITEMS = [
   { id: "documents", label: "Documents", icon: FileText, count: 0 },
   { id: "projects", label: "Projects", icon: FolderKanban },
   { id: "templates", label: "Templates", icon: LayoutTemplate },
+  { id: "integrations", label: "Integrations", icon: Plug },
 ];
 
 export function Sidebar({
@@ -42,10 +47,27 @@ export function Sidebar({
   isCollapsed,
   onToggleCollapse,
 }: SidebarProps) {
-  const [activeNav, setActiveNav] = useState("chats");
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Determine active nav based on current route
+  const getActiveNav = () => {
+    if (location.pathname === "/projects") return "projects";
+    if (location.pathname === "/templates") return "templates";
+    if (location.pathname === "/documents") return "documents";
+    if (location.pathname === "/integrations") return "integrations";
+    return "chats";
+  };
+
+  const activeNav = getActiveNav();
 
   const handleNavClick = (id: string) => {
-    setActiveNav(id);
+    if (id === "chats") navigate("/");
+    else if (id === "projects") navigate("/projects");
+    else if (id === "templates") navigate("/templates");
+    else if (id === "documents") navigate("/documents");
+    else if (id === "integrations") navigate("/integrations");
     onNavigate(id);
   };
 
@@ -197,15 +219,33 @@ export function Sidebar({
 
       {/* User */}
       <div className="p-4 border-t border-sidebar-border flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-          <span className="text-sm font-medium">E</span>
-        </div>
+        {user?.user_metadata?.avatar_url ? (
+          <img
+            src={user.user_metadata.avatar_url}
+            alt={user.user_metadata.name || user.email || "User"}
+            className="w-8 h-8 rounded-full"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+            <span className="text-sm font-medium">
+              {(user?.user_metadata?.name || user?.email || "U").charAt(0).toUpperCase()}
+            </span>
+          </div>
+        )}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">Eugene</p>
+          <p className="text-sm font-medium truncate">
+            {user?.user_metadata?.name || user?.email?.split("@")[0] || "User"}
+          </p>
           <p className="text-xs text-muted-foreground">Free Trial</p>
         </div>
-        <Button variant="ghost" size="icon" className="text-muted-foreground">
-          <Settings className="h-4 w-4" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => signOut()}
+          title="Sign out"
+        >
+          <LogOut className="h-4 w-4" />
         </Button>
       </div>
     </div>
