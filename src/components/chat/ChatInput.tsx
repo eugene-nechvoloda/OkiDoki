@@ -7,8 +7,6 @@ import {
   Send,
   Upload,
   Image,
-  Link2,
-  FolderOpen,
   Palette,
   Globe,
   ChevronRight,
@@ -244,22 +242,6 @@ export function ChatInput({
                       <Image className="h-3.5 w-3.5 text-violet-600" />
                     </div>
                     <span className="text-sm font-medium">Add image</span>
-                  </button>
-                  <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors">
-                    <div className="h-7 w-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                      <Link2 className="h-3.5 w-3.5 text-emerald-600" />
-                    </div>
-                    <span className="text-sm font-medium">Paste link</span>
-                  </button>
-                  <div className="h-px bg-border/50 my-1" />
-                  <button className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="h-7 w-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                        <FolderOpen className="h-3.5 w-3.5 text-amber-600" />
-                      </div>
-                      <span className="text-sm font-medium">From project</span>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </button>
                 </div>
               )}
