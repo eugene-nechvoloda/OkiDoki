@@ -64,15 +64,26 @@ export default function Templates() {
   }, [user]);
 
   async function loadTemplates() {
-    if (!user) return;
+    console.log('📚 Loading templates...');
+    console.log('📚 User:', user?.id);
+
+    if (!user) {
+      console.log('⚠️ No user, skipping template load');
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
+      console.log('📚 Calling getTemplates API...');
       const { templates: tmpl } = await getTemplates({ limit: 100 });
+      console.log('📚 Templates loaded:', tmpl.length);
+      console.log('📚 Built-in templates:', tmpl.filter(t => !t.is_custom).length);
+      console.log('📚 Custom templates:', tmpl.filter(t => t.is_custom).length);
       setTemplates(tmpl);
     } catch (error) {
-      console.error("Failed to load templates:", error);
-      toast.error("Failed to load templates");
+      console.error("❌ Failed to load templates:", error);
+      toast.error(`Failed to load templates: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -102,6 +113,12 @@ export default function Templates() {
     }
 
     try {
+      console.log('💾 Saving template...', {
+        name: templateName,
+        sections: cleanSections,
+        isEditing: !!editingTemplate
+      });
+
       if (editingTemplate) {
         await updateTemplate({
           templateId: editingTemplate.id,
@@ -111,11 +128,12 @@ export default function Templates() {
         });
         toast.success("Template updated successfully");
       } else {
-        await createTemplate({
+        const result = await createTemplate({
           name: templateName,
           description: templateDescription,
           sections: cleanSections,
         });
+        console.log('✅ Template created:', result);
         toast.success("Template created successfully");
       }
 
@@ -123,8 +141,9 @@ export default function Templates() {
       resetTemplateForm();
       await loadTemplates();
     } catch (error) {
-      console.error("Failed to save template:", error);
-      toast.error("Failed to save template");
+      console.error("❌ Failed to save template:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to save template: ${errorMessage}`);
     }
   };
 
