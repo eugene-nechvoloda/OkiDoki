@@ -1,6 +1,17 @@
 -- TEMPORARY: Disable RLS for testing
 -- TODO: Remove this migration once OAuth is fixed
 
+-- Create mock user for testing (matches the mock user in AuthProvider)
+INSERT INTO public.users (id, email, name, created_at, updated_at)
+VALUES (
+  'test-user-id',
+  'test@example.com',
+  'Test User',
+  NOW(),
+  NOW()
+)
+ON CONFLICT (id) DO NOTHING;
+
 -- Disable RLS on all tables temporarily
 ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.teams DISABLE ROW LEVEL SECURITY;
