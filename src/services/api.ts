@@ -286,34 +286,38 @@ export async function getTemplates(params?: {
   limit?: number;
   visibility?: string;
 }): Promise<GetTemplatesResponse> {
-  const headers = await getAuthHeaders();
-  const queryParams = new URLSearchParams();
+  try {
+    console.log('📚 getTemplates API called with params:', params);
 
-  if (params?.limit) queryParams.set('limit', params.limit.toString());
-  if (params?.visibility) queryParams.set('visibility', params.visibility);
+    // Use direct Supabase query (edge function may not exist)
+    let query = supabase
+      .from('templates')
+      .select('*')
+      .order('is_custom', { ascending: true })
+      .order('created_at', { ascending: true });
 
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/get-templates?${queryParams}`,
-    { headers }
-  );
-
-  if (!response.ok) {
-    // Fallback: query directly from Supabase if edge function doesn't exist
-    try {
-      const { data, error } = await supabase
-        .from('templates')
-        .select('*')
-        .order('is_custom', { ascending: true })
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      return { templates: data || [] };
-    } catch (err) {
-      throw new Error('Failed to fetch templates');
+    if (params?.limit) {
+      query = query.limit(params.limit);
     }
-  }
 
-  return response.json();
+    if (params?.visibility) {
+      query = query.eq('visibility', params.visibility);
+    }
+
+    console.log('📚 Executing Supabase query...');
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('❌ Supabase query error:', error);
+      throw error;
+    }
+
+    console.log('✅ Templates fetched successfully:', data?.length || 0);
+    return { templates: data || [] };
+  } catch (err) {
+    console.error('❌ Failed to fetch templates:', err);
+    throw new Error(err instanceof Error ? err.message : 'Failed to fetch templates');
+  }
 }
 
 export interface CreateTemplateRequest {
