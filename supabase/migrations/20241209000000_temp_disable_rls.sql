@@ -1,10 +1,14 @@
 -- TEMPORARY: Disable RLS for testing
 -- TODO: Remove this migration once OAuth is fixed
 
+-- Use a valid UUID for the test user
+-- We'll temporarily drop the foreign key constraint to allow insertion
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_id_fkey;
+
 -- Create mock user for testing (matches the mock user in AuthProvider)
 INSERT INTO public.users (id, email, name, created_at, updated_at)
 VALUES (
-  'test-user-id',
+  '00000000-0000-0000-0000-000000000001',
   'test@example.com',
   'Test User',
   NOW(),

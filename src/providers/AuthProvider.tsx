@@ -17,7 +17,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // TODO: Remove this mock user once OAuth is fixed
   // TEMPORARY: Provide a mock user for testing
   const mockUser = {
-    id: 'test-user-id',
+    id: '00000000-0000-0000-0000-000000000001',
     email: 'test@example.com',
     app_metadata: {},
     user_metadata: {},

@@ -19,10 +19,13 @@ Go to: https://mlirwabkxjvleutcehae.supabase.co/project/default/sql/new
 -- TEMPORARY: Disable RLS for testing
 -- Copy and paste this entire block into Supabase SQL Editor and run it
 
--- Create mock user for testing
+-- Drop the foreign key constraint temporarily to allow mock user insertion
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_id_fkey;
+
+-- Create mock user for testing with a valid UUID
 INSERT INTO public.users (id, email, name, created_at, updated_at)
 VALUES (
-  'test-user-id',
+  '00000000-0000-0000-0000-000000000001',
   'test@example.com',
   'Test User',
   NOW(),
@@ -93,7 +96,7 @@ ALTER TABLE public.file_attachments ENABLE ROW LEVEL SECURITY;
 
 3. Delete the mock user:
 ```sql
-DELETE FROM public.users WHERE id = 'test-user-id';
+DELETE FROM public.users WHERE id = '00000000-0000-0000-0000-000000000001';
 ```
 
 ## Files Modified

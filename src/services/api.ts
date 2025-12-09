@@ -15,7 +15,7 @@ import type {
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 // TEMPORARY: Mock user ID for testing (matches AuthProvider mock user)
-const MOCK_USER_ID = 'test-user-id';
+const MOCK_USER_ID = '00000000-0000-0000-0000-000000000001';
 
 // Helper to get current user ID (temporary mock during testing)
 async function getCurrentUserId(): Promise<string> {
