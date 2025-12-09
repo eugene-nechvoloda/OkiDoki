@@ -36,6 +36,7 @@ import type { PRDTemplate, ChatSettings } from "@/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { BUILT_IN_TEMPLATES } from "@/data/templates";
+import { IntegrationsQuickPanel } from "@/components/integrations/IntegrationsQuickPanel";
 
 interface ChatInputProps {
   onSend: (message: string, settings: ChatSettings) => void;
@@ -83,6 +84,7 @@ export function ChatInput({
   const [templateSubmenu, setTemplateSubmenu] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [uploadSubmenu, setUploadSubmenu] = useState(false);
+  const [integrationsOpen, setIntegrationsOpen] = useState(false);
 
   const handleSubmit = () => {
     if (input.trim() && !isLoading) {
@@ -252,15 +254,26 @@ export function ChatInput({
           </Popover>
 
           {/* Integrations/Tools button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/integrations")}
-            className="h-8 w-8 rounded-xl transition-all hover:bg-muted"
-            title="Integrations"
-          >
-            <Plug className="h-4 w-4" />
-          </Button>
+          <Popover open={integrationsOpen} onOpenChange={setIntegrationsOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-8 w-8 rounded-xl transition-all",
+                  integrationsOpen
+                    ? "bg-primary/15 text-primary"
+                    : "hover:bg-muted"
+                )}
+                title="Integrations"
+              >
+                <Plug className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="p-0 rounded-xl" sideOffset={8}>
+              <IntegrationsQuickPanel onClose={() => setIntegrationsOpen(false)} />
+            </PopoverContent>
+          </Popover>
 
           {/* Settings/Config button */}
           <Popover open={toolsOpen} onOpenChange={(open) => {

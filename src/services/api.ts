@@ -8,6 +8,8 @@ import type {
   PRDDocumentInsert,
   FileAttachment,
   Template,
+  Project,
+  Integration,
 } from '@/types/database';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -299,6 +301,165 @@ export async function getTemplates(params?: {
   return response.json();
 }
 
+export interface CreateTemplateRequest {
+  name: string;
+  description?: string;
+  sections: string[];
+  visibility?: 'private' | 'public';
+}
+
+export interface UpdateTemplateRequest {
+  templateId: string;
+  name?: string;
+  description?: string;
+  sections?: string[];
+  visibility?: 'private' | 'public';
+}
+
+export async function createTemplate(
+  data: CreateTemplateRequest
+): Promise<{ template: Template }> {
+  const { data: template, error } = await supabase
+    .from('templates')
+    .insert({
+      name: data.name,
+      description: data.description,
+      sections_json: data.sections,
+      is_custom: true,
+      visibility: data.visibility || 'private',
+      owner_id: (await supabase.auth.getUser()).data.user?.id || '',
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { template };
+}
+
+export async function updateTemplate(
+  data: UpdateTemplateRequest
+): Promise<{ template: Template }> {
+  const updateData: any = {};
+  if (data.name) updateData.name = data.name;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.sections) updateData.sections_json = data.sections;
+  if (data.visibility) updateData.visibility = data.visibility;
+
+  const { data: template, error } = await supabase
+    .from('templates')
+    .update(updateData)
+    .eq('id', data.templateId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { template };
+}
+
+export async function deleteTemplate(templateId: string): Promise<void> {
+  const { error } = await supabase
+    .from('templates')
+    .delete()
+    .eq('id', templateId);
+
+  if (error) throw error;
+}
+
+// =====================================================
+// PROJECTS API
+// =====================================================
+
+export interface GetProjectsResponse {
+  projects: Project[];
+}
+
+export interface CreateProjectRequest {
+  name: string;
+  description?: string;
+  visibility?: 'private' | 'public';
+}
+
+export interface UpdateProjectRequest {
+  projectId: string;
+  name?: string;
+  description?: string;
+  visibility?: 'private' | 'public';
+}
+
+export async function getProjects(params?: {
+  limit?: number;
+  search?: string;
+}): Promise<GetProjectsResponse> {
+  try {
+    let query = supabase
+      .from('projects')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (params?.limit) {
+      query = query.limit(params.limit);
+    }
+
+    if (params?.search) {
+      query = query.ilike('name', `%${params.search}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+    return { projects: data || [] };
+  } catch (err) {
+    console.error('Failed to fetch projects:', err);
+    return { projects: [] };
+  }
+}
+
+export async function createProject(
+  data: CreateProjectRequest
+): Promise<{ project: Project }> {
+  const { data: project, error } = await supabase
+    .from('projects')
+    .insert({
+      name: data.name,
+      description: data.description,
+      visibility: data.visibility || 'private',
+      owner_id: (await supabase.auth.getUser()).data.user?.id || '',
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { project };
+}
+
+export async function updateProject(
+  data: UpdateProjectRequest
+): Promise<{ project: Project }> {
+  const updateData: any = {};
+  if (data.name) updateData.name = data.name;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.visibility) updateData.visibility = data.visibility;
+
+  const { data: project, error } = await supabase
+    .from('projects')
+    .update(updateData)
+    .eq('id', data.projectId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { project };
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  const { error } = await supabase
+    .from('projects')
+    .delete()
+    .eq('id', projectId);
+
+  if (error) throw error;
+}
+
 // =====================================================
 // PRD GENERATION API (Enhanced)
 // =====================================================
@@ -373,3 +534,146 @@ export async function generatePRD(
     }
   }
 }
+
+// =====================================================
+// INTEGRATIONS API
+// =====================================================
+
+export interface GetIntegrationsResponse {
+  integrations: Integration[];
+}
+
+export interface ConnectIntegrationRequest {
+  provider: 'confluence' | 'linear' | 'gamma' | 'napkin';
+  credentials: {
+    access_token?: string;
+    refresh_token?: string;
+    api_key?: string;
+  };
+  config?: {
+    scopes?: string[];
+    workspace_id?: string;
+    workspace_name?: string;
+    [key: string]: any;
+  };
+}
+
+export interface UpdateIntegrationRequest {
+  integrationId: string;
+  config?: any;
+  isActive?: boolean;
+}
+
+export async function getIntegrations(): Promise<GetIntegrationsResponse> {
+  try {
+    const { data, error } = await supabase
+      .from('integrations')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { integrations: data || [] };
+  } catch (err) {
+    console.error('Failed to fetch integrations:', err);
+    return { integrations: [] };
+  }
+}
+
+export async function connectIntegration(
+  data: ConnectIntegrationRequest
+): Promise<{ integration: Integration }> {
+  // In a real implementation, credentials would be encrypted server-side
+  // For now, we'll store them in config_json (this is not secure for production)
+  const { data: integration, error } = await supabase
+    .from('integrations')
+    .upsert(
+      {
+        provider: data.provider,
+        user_id: (await supabase.auth.getUser()).data.user?.id || '',
+        credentials_encrypted: JSON.stringify(data.credentials), // TODO: Encrypt server-side
+        config_json: data.config || {},
+        is_active: true,
+      },
+      {
+        onConflict: 'user_id,provider',
+      }
+    )
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { integration };
+}
+
+export async function disconnectIntegration(integrationId: string): Promise<void> {
+  const { error } = await supabase
+    .from('integrations')
+    .delete()
+    .eq('id', integrationId);
+
+  if (error) throw error;
+}
+
+export async function updateIntegration(
+  data: UpdateIntegrationRequest
+): Promise<{ integration: Integration }> {
+  const updateData: any = {};
+  if (data.config !== undefined) updateData.config_json = data.config;
+  if (data.isActive !== undefined) updateData.is_active = data.isActive;
+  updateData.updated_at = new Date().toISOString();
+
+  const { data: integration, error } = await supabase
+    .from('integrations')
+    .update(updateData)
+    .eq('id', data.integrationId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { integration };
+}
+
+// OAuth configuration for each integration
+export const INTEGRATION_CONFIG = {
+  confluence: {
+    name: 'Confluence',
+    icon: '📄',
+    description: 'Export PRDs to Confluence pages',
+    category: 'export',
+    scopes: [
+      'read:confluence-content.all',
+      'write:confluence-content',
+      'read:confluence-space.summary',
+      'write:confluence-space',
+    ],
+    authUrl: 'https://auth.atlassian.com/authorize',
+    tokenUrl: 'https://auth.atlassian.com/oauth/token',
+  },
+  linear: {
+    name: 'Linear',
+    icon: '🔷',
+    description: 'Create Linear issues from PRDs',
+    category: 'export',
+    scopes: ['read', 'write'],
+    authUrl: 'https://linear.app/oauth/authorize',
+    tokenUrl: 'https://api.linear.app/oauth/token',
+  },
+  gamma: {
+    name: 'Gamma',
+    icon: '🎨',
+    description: 'Generate presentations from PRDs',
+    category: 'export',
+    scopes: ['read:documents', 'write:documents'],
+    authUrl: 'https://gamma.app/oauth/authorize',
+    tokenUrl: 'https://api.gamma.app/oauth/token',
+  },
+  napkin: {
+    name: 'Napkin AI',
+    icon: '✏️',
+    description: 'Create visual diagrams from PRDs',
+    category: 'export',
+    scopes: ['read:projects', 'write:diagrams'],
+    authUrl: 'https://napkin.ai/oauth/authorize',
+    tokenUrl: 'https://api.napkin.ai/oauth/token',
+  },
+} as const;

@@ -4,23 +4,42 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  FileText,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  FolderKanban,
   Plus,
   Search,
-  Clock,
-  Eye,
-  Trash2,
+  FileText,
   MoreHorizontal,
+  Trash2,
+  Edit,
   ArrowLeft,
   Save,
   X,
+  FolderOpen,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getDocuments, saveDocument } from "@/services/api";
+import { getProjects, createProject, updateProject, deleteProject, getDocuments, saveDocument } from "@/services/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { useChat } from "@/hooks/useChat";
-import type { PRDDocument } from "@/types/database";
+import type { Project, PRDDocument } from "@/types/database";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -32,46 +51,133 @@ export default function Projects() {
   const { chats, currentChat, createNewChat, selectChat } = useChat();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [documents, setDocuments] = useState<PRDDocument[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [projectDocuments, setProjectDocuments] = useState<PRDDocument[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<PRDDocument | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
 
-  // Load documents on mount
+  // Project creation/edit state
+  const [showProjectDialog, setShowProjectDialog] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [projectName, setProjectName] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
+
+  // Load projects on mount
   useEffect(() => {
-    loadDocuments();
+    loadProjects();
   }, [user]);
 
-  async function loadDocuments() {
-    if (!user) return;
+  // Load documents when project is selected
+  useEffect(() => {
+    if (selectedProject) {
+      loadProjectDocuments(selectedProject.id);
+    }
+  }, [selectedProject]);
 
+  async function loadProjects() {
     try {
       setLoading(true);
-      const { documents: docs } = await getDocuments({ limit: 100 });
-      setDocuments(docs);
+      const { projects: proj } = await getProjects({ limit: 100 });
+      setProjects(proj);
     } catch (error) {
-      console.error("Failed to load documents:", error);
-      toast.error("Failed to load documents");
+      console.error("Failed to load projects:", error);
+      toast.error("Failed to load projects");
     } finally {
       setLoading(false);
     }
   }
 
-  // Filter documents by search query
-  const filteredDocuments = documents.filter((doc) =>
-    doc.title.toLowerCase().includes(searchQuery.toLowerCase())
+  async function loadProjectDocuments(projectId: string) {
+    try {
+      const { documents: docs } = await getDocuments({ projectId, limit: 100 });
+      setProjectDocuments(docs);
+    } catch (error) {
+      console.error("Failed to load project documents:", error);
+      toast.error("Failed to load documents");
+    }
+  }
+
+  const filteredProjects = projects.filter((project) =>
+    project.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Handle opening a document for viewing/editing
+  const handleCreateProject = async () => {
+    if (!projectName.trim()) {
+      toast.error("Project name is required");
+      return;
+    }
+
+    try {
+      if (editingProject) {
+        await updateProject({
+          projectId: editingProject.id,
+          name: projectName,
+          description: projectDescription,
+        });
+        toast.success("Project updated successfully");
+      } else {
+        await createProject({
+          name: projectName,
+          description: projectDescription,
+        });
+        toast.success("Project created successfully");
+      }
+
+      setShowProjectDialog(false);
+      setProjectName("");
+      setProjectDescription("");
+      setEditingProject(null);
+      await loadProjects();
+    } catch (error) {
+      console.error("Failed to create/update project:", error);
+      toast.error("Failed to save project");
+    }
+  };
+
+  const handleEditProject = (project: Project) => {
+    setEditingProject(project);
+    setProjectName(project.name);
+    setProjectDescription(project.description || "");
+    setShowProjectDialog(true);
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm("Are you sure you want to delete this project? All documents will remain but be unassigned.")) return;
+
+    try {
+      await deleteProject(projectId);
+      toast.success("Project deleted successfully");
+      await loadProjects();
+      if (selectedProject?.id === projectId) {
+        setSelectedProject(null);
+      }
+    } catch (error) {
+      console.error("Failed to delete project:", error);
+      toast.error("Failed to delete project");
+    }
+  };
+
+  const handleOpenProject = (project: Project) => {
+    setSelectedProject(project);
+    setSelectedDoc(null);
+  };
+
+  const handleBackToProjects = () => {
+    setSelectedProject(null);
+    setProjectDocuments([]);
+    setSelectedDoc(null);
+  };
+
   const handleOpenDocument = (doc: PRDDocument) => {
     setSelectedDoc(doc);
     setEditContent(doc.content_markdown || "");
     setIsEditing(false);
   };
 
-  // Handle saving edited document
   const handleSaveDocument = async () => {
     if (!selectedDoc) return;
 
@@ -86,11 +192,11 @@ export default function Projects() {
       toast.success("Document saved successfully");
       setIsEditing(false);
 
-      // Reload documents to get updated version
-      await loadDocuments();
+      if (selectedProject) {
+        await loadProjectDocuments(selectedProject.id);
+      }
 
-      // Update selected doc with new content
-      const updatedDoc = documents.find((d) => d.id === selectedDoc.id);
+      const updatedDoc = projectDocuments.find((d) => d.id === selectedDoc.id);
       if (updatedDoc) {
         setSelectedDoc(updatedDoc);
       }
@@ -100,20 +206,6 @@ export default function Projects() {
     }
   };
 
-  // Handle deleting a document
-  const handleDeleteDocument = async (docId: string) => {
-    if (!confirm("Are you sure you want to delete this document?")) return;
-
-    try {
-      // TODO: Implement delete endpoint
-      toast.info("Delete functionality coming soon");
-    } catch (error) {
-      console.error("Failed to delete document:", error);
-      toast.error("Failed to delete document");
-    }
-  };
-
-  // Markdown components for preview
   const markdownComponents: Components = {
     h1: ({ children }) => (
       <h1 className="text-3xl font-bold mt-8 mb-4 text-foreground border-b pb-2">
@@ -140,21 +232,6 @@ export default function Projects() {
         {children}
       </p>
     ),
-    ul: ({ children }) => (
-      <ul className="mb-4 ml-6 list-disc space-y-2 text-foreground/90">
-        {children}
-      </ul>
-    ),
-    ol: ({ children }) => (
-      <ol className="mb-4 ml-6 list-decimal space-y-2 text-foreground/90">
-        {children}
-      </ol>
-    ),
-    li: ({ children }) => (
-      <li className="leading-relaxed">
-        {children}
-      </li>
-    ),
     strong: ({ children }) => (
       <strong className="font-semibold text-foreground">
         {children}
@@ -175,16 +252,6 @@ export default function Projects() {
           {children}
         </code>
       ),
-    pre: ({ children }) => (
-      <pre className="bg-muted p-4 rounded-lg overflow-x-auto mb-4">
-        {children}
-      </pre>
-    ),
-    blockquote: ({ children }) => (
-      <blockquote className="border-l-4 border-primary pl-4 italic my-4 text-foreground/80">
-        {children}
-      </blockquote>
-    ),
   };
 
   return (
@@ -199,7 +266,7 @@ export default function Projects() {
           if (view === "chats") navigate("/");
           if (view === "projects") navigate("/projects");
           if (view === "templates") navigate("/templates");
-          if (view === "documents") navigate("/documents");
+          if (view === "integrations") navigate("/integrations");
         }}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -210,16 +277,12 @@ export default function Projects() {
         {selectedDoc ? (
           // Document Editor View
           <div className="flex-1 flex flex-col">
-            {/* Editor Header */}
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => {
-                    setSelectedDoc(null);
-                    setIsEditing(false);
-                  }}
+                  onClick={() => setSelectedDoc(null)}
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
@@ -265,11 +328,9 @@ export default function Projects() {
               </div>
             </div>
 
-            {/* Editor Content */}
             <ScrollArea className="flex-1">
               <div className="max-w-4xl mx-auto px-6 py-8">
                 {isEditing ? (
-                  // Edit Mode - Notion-like textarea
                   <div className="min-h-[600px]">
                     <textarea
                       value={editContent}
@@ -277,12 +338,8 @@ export default function Projects() {
                       className="w-full min-h-[600px] p-4 bg-background text-foreground border border-border rounded-lg resize-y focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm leading-relaxed"
                       placeholder="Write your PRD content here... (Markdown supported)"
                     />
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Tip: Use Markdown formatting (# for headings, ** for bold, * for italic, etc.)
-                    </p>
                   </div>
                 ) : (
-                  // View Mode - Rendered markdown
                   <article className="prose prose-neutral dark:prose-invert max-w-none">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
@@ -295,17 +352,30 @@ export default function Projects() {
               </div>
             </ScrollArea>
           </div>
-        ) : (
-          // Document List View
+        ) : selectedProject ? (
+          // Project Documents View
           <>
-            {/* Header */}
             <div className="px-6 py-4 border-b border-border">
               <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h1 className="text-2xl font-semibold">Projects & Documents</h1>
-                  <p className="text-sm text-muted-foreground">
-                    Manage your saved PRD documents
-                  </p>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleBackToProjects}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div>
+                    <h1 className="text-2xl font-semibold flex items-center gap-2">
+                      <FolderOpen className="h-6 w-6 text-primary" />
+                      {selectedProject.name}
+                    </h1>
+                    {selectedProject.description && (
+                      <p className="text-sm text-muted-foreground">
+                        {selectedProject.description}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <Button
                   onClick={() => navigate("/")}
@@ -315,54 +385,30 @@ export default function Projects() {
                   Create New PRD
                 </Button>
               </div>
-
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search documents..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
             </div>
 
-            {/* Document List */}
             <ScrollArea className="flex-1">
               <div className="p-6">
-                {loading ? (
-                  <div className="flex items-center justify-center h-64">
-                    <div className="text-center">
-                      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                      <p className="text-sm text-muted-foreground">Loading documents...</p>
-                    </div>
-                  </div>
-                ) : filteredDocuments.length === 0 ? (
+                {projectDocuments.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-64 text-center">
                     <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center mb-4">
                       <FileText className="h-8 w-8 text-muted-foreground" />
                     </div>
-                    <h3 className="font-medium mb-2">No documents yet</h3>
+                    <h3 className="font-medium mb-2">No documents in this project</h3>
                     <p className="text-sm text-muted-foreground max-w-sm mb-4">
-                      {searchQuery
-                        ? "No documents match your search"
-                        : "Create your first PRD to get started"}
+                      Create PRDs and save them to this project
                     </p>
-                    {!searchQuery && (
-                      <Button
-                        onClick={() => navigate("/")}
-                        className="gradient-brand text-primary-foreground"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create New PRD
-                      </Button>
-                    )}
+                    <Button
+                      onClick={() => navigate("/")}
+                      className="gradient-brand text-primary-foreground"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create New PRD
+                    </Button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredDocuments.map((doc) => (
+                    {projectDocuments.map((doc) => (
                       <div
                         key={doc.id}
                         className="group p-4 bg-card border border-border rounded-lg hover:border-primary/50 transition-colors cursor-pointer"
@@ -384,17 +430,6 @@ export default function Projects() {
                               {doc.status}
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteDocument(doc.id);
-                            }}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
                         </div>
 
                         <h3 className="font-medium mb-2 line-clamp-2">{doc.title}</h3>
@@ -410,9 +445,196 @@ export default function Projects() {
                             <Clock className="h-3 w-3" />
                             <span>{new Date(doc.created_at).toLocaleDateString()}</span>
                           </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </>
+        ) : (
+          // Projects List View
+          <>
+            <div className="px-6 py-4 border-b border-border">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h1 className="text-2xl font-semibold">Projects</h1>
+                  <p className="text-sm text-muted-foreground">
+                    Organize your PRDs into projects
+                  </p>
+                </div>
+                <Dialog open={showProjectDialog} onOpenChange={setShowProjectDialog}>
+                  <DialogTrigger asChild>
+                    <Button
+                      className="gradient-brand text-primary-foreground"
+                      onClick={() => {
+                        setEditingProject(null);
+                        setProjectName("");
+                        setProjectDescription("");
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Project
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>
+                        {editingProject ? "Edit Project" : "Create New Project"}
+                      </DialogTitle>
+                      <DialogDescription>
+                        {editingProject
+                          ? "Update your project details"
+                          : "Create a new project to organize your PRDs"}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="project-name">Project Name</Label>
+                        <Input
+                          id="project-name"
+                          value={projectName}
+                          onChange={(e) => setProjectName(e.target.value)}
+                          placeholder="My Product Project"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="project-description">
+                          Description (Optional)
+                        </Label>
+                        <Textarea
+                          id="project-description"
+                          value={projectDescription}
+                          onChange={(e) => setProjectDescription(e.target.value)}
+                          placeholder="Describe your project..."
+                          className="mt-1"
+                          rows={3}
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowProjectDialog(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleCreateProject}
+                          className="gradient-brand text-primary-foreground"
+                        >
+                          {editingProject ? "Update Project" : "Create Project"}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search projects..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            <ScrollArea className="flex-1">
+              <div className="p-6">
+                {loading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                      <p className="text-sm text-muted-foreground">Loading projects...</p>
+                    </div>
+                  </div>
+                ) : filteredProjects.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-64 text-center">
+                    <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center mb-4">
+                      <FolderKanban className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <h3 className="font-medium mb-2">No projects yet</h3>
+                    <p className="text-sm text-muted-foreground max-w-sm mb-4">
+                      {searchQuery
+                        ? "No projects match your search"
+                        : "Create your first project to organize your PRDs"}
+                    </p>
+                    {!searchQuery && (
+                      <Button
+                        onClick={() => setShowProjectDialog(true)}
+                        className="gradient-brand text-primary-foreground"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Project
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredProjects.map((project) => (
+                      <div
+                        key={project.id}
+                        className="group p-5 bg-card border border-border rounded-lg hover:border-primary/50 transition-all cursor-pointer"
+                        onClick={() => handleOpenProject(project)}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                              <FolderKanban className="h-6 w-6 text-primary" />
+                            </div>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditProject(project);
+                              }}>
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteProject(project.id);
+                                }}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+
+                        <h3 className="font-semibold text-lg mb-2">{project.name}</h3>
+
+                        <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+                          {project.description || "No description"}
+                        </p>
+
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
-                            <Eye className="h-3 w-3" />
-                            <span>View</span>
+                            <Clock className="h-3 w-3" />
+                            <span>{new Date(project.created_at).toLocaleDateString()}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <FileText className="h-3 w-3" />
+                            <span>0 docs</span>
                           </div>
                         </div>
                       </div>
