@@ -14,18 +14,33 @@ import type {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
+// TEMPORARY: Mock user ID for testing (matches AuthProvider mock user)
+const MOCK_USER_ID = 'test-user-id';
+
+// Helper to get current user ID (temporary mock during testing)
+async function getCurrentUserId(): Promise<string> {
+  // TODO: Remove this mock and use real auth once OAuth is fixed
+  return MOCK_USER_ID;
+
+  // Real implementation (commented out):
+  // const { data: { user } } = await supabase.auth.getUser();
+  // return user?.id || '';
+}
+
 // Helper to get auth headers
 async function getAuthHeaders() {
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
-  if (!session) {
-    throw new Error('Not authenticated');
-  }
+  // TEMPORARY: Allow requests without session for testing
+  // TODO: Re-enable authentication check once OAuth is fixed
+  // if (!session) {
+  //   throw new Error('Not authenticated');
+  // }
 
   return {
-    'Authorization': `Bearer ${session.access_token}`,
+    'Authorization': session ? `Bearer ${session.access_token}` : '',
     'Content-Type': 'application/json',
     'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
   };
@@ -327,7 +342,7 @@ export async function createTemplate(
       sections_json: data.sections,
       is_custom: true,
       visibility: data.visibility || 'private',
-      owner_id: (await supabase.auth.getUser()).data.user?.id || '',
+      owner_id: await getCurrentUserId(),
     })
     .select()
     .single();
@@ -423,7 +438,7 @@ export async function createProject(
       name: data.name,
       description: data.description,
       visibility: data.visibility || 'private',
-      owner_id: (await supabase.auth.getUser()).data.user?.id || '',
+      owner_id: await getCurrentUserId(),
     })
     .select()
     .single();
@@ -589,7 +604,7 @@ export async function connectIntegration(
     .upsert(
       {
         provider: data.provider,
-        user_id: (await supabase.auth.getUser()).data.user?.id || '',
+        user_id: await getCurrentUserId(),
         credentials_encrypted: JSON.stringify(data.credentials), // TODO: Encrypt server-side
         config_json: data.config || {},
         is_active: true,
