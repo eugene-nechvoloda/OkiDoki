@@ -17,9 +17,19 @@ export function useChat() {
   );
   const [prdContent, setPrdContent] = useState("");
 
+  // TEMPORARY: Debug logging
+  useEffect(() => {
+    console.log('🔍 useChat - User state changed:', user);
+    console.log('🔍 useChat - User ID:', user?.id);
+    console.log('🔍 useChat - User is null?', !user);
+  }, [user]);
+
   // Load chat history on mount
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      console.log('⚠️ useChat - Skipping chat history load, no user');
+      return;
+    }
 
     async function loadChatHistory() {
       try {
@@ -73,10 +83,17 @@ export function useChat() {
 
   const sendMessage = useCallback(
     async (content: string, settings: ChatSettings) => {
+      console.log('📨 sendMessage called');
+      console.log('📨 User at sendMessage time:', user);
+      console.log('📨 User ID:', user?.id);
+
       if (!user) {
+        console.error('❌ No user found in sendMessage - showing error toast');
         toast.error("Please sign in to continue");
         return;
       }
+
+      console.log('✅ User verified, proceeding with message send');
 
       let chat = currentChat;
       if (!chat) {
