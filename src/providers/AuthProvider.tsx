@@ -13,24 +13,29 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// TEMPORARY: Create mock user outside component to ensure it's consistent
+const MOCK_USER = {
+  id: '00000000-0000-0000-0000-000000000001',
+  email: 'test@example.com',
+  app_metadata: {},
+  user_metadata: {},
+  aud: 'authenticated',
+  created_at: new Date().toISOString(),
+} as User;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   // TODO: Remove this mock user once OAuth is fixed
   // TEMPORARY: Provide a mock user for testing
-  const mockUser = {
-    id: '00000000-0000-0000-0000-000000000001',
-    email: 'test@example.com',
-    app_metadata: {},
-    user_metadata: {},
-    aud: 'authenticated',
-    created_at: new Date().toISOString(),
-  } as User;
-
-  const [user, setUser] = useState<User | null>(mockUser);
+  const [user, setUser] = useState<User | null>(MOCK_USER);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(false); // Set to false immediately
   const navigate = useNavigate();
 
   useEffect(() => {
+    // TEMPORARY: Log to verify mock user is set
+    console.log('🔧 AuthProvider initialized with mock user:', MOCK_USER.id);
+    console.log('👤 User state:', user);
+
     // TEMPORARY: Skip real authentication, use mock user
     // Get initial session
     // supabase.auth.getSession().then(({ data: { session } }) => {
