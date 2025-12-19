@@ -92,6 +92,17 @@ export async function saveChat(data: SaveChatRequest): Promise<SaveChatResponse>
 
       // Save messages if provided
       if (data.messages && data.messages.length > 0) {
+        // Delete existing messages first to avoid conflicts
+        const { error: deleteError } = await supabase
+          .from('chat_messages')
+          .delete()
+          .eq('chat_id', data.chatId);
+
+        if (deleteError) {
+          console.error('Failed to delete old messages:', deleteError);
+        }
+
+        // Insert fresh messages
         const messageInserts = data.messages.map((msg, index) => ({
           chat_id: data.chatId,
           role: msg.role,
@@ -102,9 +113,12 @@ export async function saveChat(data: SaveChatRequest): Promise<SaveChatResponse>
 
         const { error: messagesError } = await supabase
           .from('chat_messages')
-          .upsert(messageInserts);
+          .insert(messageInserts);
 
-        if (messagesError) console.error('Failed to save messages:', messagesError);
+        if (messagesError) {
+          console.error('Failed to save messages:', messagesError);
+          throw messagesError;
+        }
       }
 
       console.log('✅ Chat updated:', chat);
@@ -139,7 +153,10 @@ export async function saveChat(data: SaveChatRequest): Promise<SaveChatResponse>
           .from('chat_messages')
           .insert(messageInserts);
 
-        if (messagesError) console.error('Failed to save messages:', messagesError);
+        if (messagesError) {
+          console.error('Failed to save messages:', messagesError);
+          throw messagesError;
+        }
       }
 
       console.log('✅ Chat created:', chat);
