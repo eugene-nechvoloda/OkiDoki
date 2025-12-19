@@ -298,19 +298,9 @@ export async function getTemplates(params?: {
   );
 
   if (!response.ok) {
-    // Fallback: query directly from Supabase if edge function doesn't exist
-    try {
-      const { data, error } = await supabase
-        .from('templates')
-        .select('*')
-        .order('is_custom', { ascending: true })
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      return { templates: data || [] };
-    } catch (err) {
-      throw new Error('Failed to fetch templates');
-    }
+    // Return empty array if edge function doesn't exist (tables not created yet)
+    console.warn('Templates edge function not available, returning empty array');
+    return { templates: [] };
   }
 
   return response.json();
@@ -334,50 +324,23 @@ export interface UpdateTemplateRequest {
 export async function createTemplate(
   data: CreateTemplateRequest
 ): Promise<{ template: Template }> {
-  const { data: template, error } = await supabase
-    .from('templates')
-    .insert({
-      name: data.name,
-      description: data.description,
-      sections_json: data.sections,
-      is_custom: true,
-      visibility: data.visibility || 'private',
-      owner_id: await getCurrentUserId(),
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return { template };
+  // TODO: Implement when templates table is created
+  console.warn('createTemplate: templates table not available yet');
+  throw new Error('Templates feature not available yet. Database tables need to be created.');
 }
 
 export async function updateTemplate(
   data: UpdateTemplateRequest
 ): Promise<{ template: Template }> {
-  const updateData: any = {};
-  if (data.name) updateData.name = data.name;
-  if (data.description !== undefined) updateData.description = data.description;
-  if (data.sections) updateData.sections_json = data.sections;
-  if (data.visibility) updateData.visibility = data.visibility;
-
-  const { data: template, error } = await supabase
-    .from('templates')
-    .update(updateData)
-    .eq('id', data.templateId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return { template };
+  // TODO: Implement when templates table is created
+  console.warn('updateTemplate: templates table not available yet');
+  throw new Error('Templates feature not available yet. Database tables need to be created.');
 }
 
 export async function deleteTemplate(templateId: string): Promise<void> {
-  const { error } = await supabase
-    .from('templates')
-    .delete()
-    .eq('id', templateId);
-
-  if (error) throw error;
+  // TODO: Implement when templates table is created
+  console.warn('deleteTemplate: templates table not available yet');
+  throw new Error('Templates feature not available yet. Database tables need to be created.');
 }
 
 // =====================================================
@@ -405,74 +368,31 @@ export async function getProjects(params?: {
   limit?: number;
   search?: string;
 }): Promise<GetProjectsResponse> {
-  try {
-    let query = supabase
-      .from('projects')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (params?.limit) {
-      query = query.limit(params.limit);
-    }
-
-    if (params?.search) {
-      query = query.ilike('name', `%${params.search}%`);
-    }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
-    return { projects: data || [] };
-  } catch (err) {
-    console.error('Failed to fetch projects:', err);
-    return { projects: [] };
-  }
+  // TODO: Implement when projects table is created
+  console.warn('getProjects: projects table not available yet');
+  return { projects: [] };
 }
 
 export async function createProject(
   data: CreateProjectRequest
 ): Promise<{ project: Project }> {
-  const { data: project, error } = await supabase
-    .from('projects')
-    .insert({
-      name: data.name,
-      description: data.description,
-      visibility: data.visibility || 'private',
-      owner_id: await getCurrentUserId(),
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return { project };
+  // TODO: Implement when projects table is created
+  console.warn('createProject: projects table not available yet');
+  throw new Error('Projects feature not available yet. Database tables need to be created.');
 }
 
 export async function updateProject(
   data: UpdateProjectRequest
 ): Promise<{ project: Project }> {
-  const updateData: any = {};
-  if (data.name) updateData.name = data.name;
-  if (data.description !== undefined) updateData.description = data.description;
-  if (data.visibility) updateData.visibility = data.visibility;
-
-  const { data: project, error } = await supabase
-    .from('projects')
-    .update(updateData)
-    .eq('id', data.projectId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return { project };
+  // TODO: Implement when projects table is created
+  console.warn('updateProject: projects table not available yet');
+  throw new Error('Projects feature not available yet. Database tables need to be created.');
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
-  const { error } = await supabase
-    .from('projects')
-    .delete()
-    .eq('id', projectId);
-
-  if (error) throw error;
+  // TODO: Implement when projects table is created
+  console.warn('deleteProject: projects table not available yet');
+  throw new Error('Projects feature not available yet. Database tables need to be created.');
 }
 
 // =====================================================
@@ -580,72 +500,31 @@ export interface UpdateIntegrationRequest {
 }
 
 export async function getIntegrations(): Promise<GetIntegrationsResponse> {
-  try {
-    const { data, error } = await supabase
-      .from('integrations')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return { integrations: data || [] };
-  } catch (err) {
-    console.error('Failed to fetch integrations:', err);
-    return { integrations: [] };
-  }
+  // TODO: Implement when integrations table is created
+  console.warn('getIntegrations: integrations table not available yet');
+  return { integrations: [] };
 }
 
 export async function connectIntegration(
   data: ConnectIntegrationRequest
 ): Promise<{ integration: Integration }> {
-  // In a real implementation, credentials would be encrypted server-side
-  // For now, we'll store them in config_json (this is not secure for production)
-  const { data: integration, error } = await supabase
-    .from('integrations')
-    .upsert(
-      {
-        provider: data.provider,
-        user_id: await getCurrentUserId(),
-        credentials_encrypted: JSON.stringify(data.credentials), // TODO: Encrypt server-side
-        config_json: data.config || {},
-        is_active: true,
-      },
-      {
-        onConflict: 'user_id,provider',
-      }
-    )
-    .select()
-    .single();
-
-  if (error) throw error;
-  return { integration };
+  // TODO: Implement when integrations table is created
+  console.warn('connectIntegration: integrations table not available yet');
+  throw new Error('Integrations feature not available yet. Database tables need to be created.');
 }
 
 export async function disconnectIntegration(integrationId: string): Promise<void> {
-  const { error } = await supabase
-    .from('integrations')
-    .delete()
-    .eq('id', integrationId);
-
-  if (error) throw error;
+  // TODO: Implement when integrations table is created
+  console.warn('disconnectIntegration: integrations table not available yet');
+  throw new Error('Integrations feature not available yet. Database tables need to be created.');
 }
 
 export async function updateIntegration(
   data: UpdateIntegrationRequest
 ): Promise<{ integration: Integration }> {
-  const updateData: any = {};
-  if (data.config !== undefined) updateData.config_json = data.config;
-  if (data.isActive !== undefined) updateData.is_active = data.isActive;
-  updateData.updated_at = new Date().toISOString();
-
-  const { data: integration, error } = await supabase
-    .from('integrations')
-    .update(updateData)
-    .eq('id', data.integrationId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return { integration };
+  // TODO: Implement when integrations table is created
+  console.warn('updateIntegration: integrations table not available yet');
+  throw new Error('Integrations feature not available yet. Database tables need to be created.');
 }
 
 // OAuth configuration for each integration
