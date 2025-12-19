@@ -208,7 +208,9 @@ export default function Templates() {
     setSelectedTemplate({
       id: template.id,
       name: template.name,
+      description: template.description || "",
       sections: sections as string[],
+      isBuiltIn: !template.is_custom,
     });
 
     toast.success(`Using template: ${template.name}`);
