@@ -739,72 +739,31 @@ export interface UpdateIntegrationRequest {
 }
 
 export async function getIntegrations(): Promise<GetIntegrationsResponse> {
-  try {
-    const { data, error } = await supabase
-      .from('integrations')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return { integrations: data || [] };
-  } catch (err) {
-    console.error('Failed to fetch integrations:', err);
-    return { integrations: [] };
-  }
+  // TODO: Implement when integrations table is created
+  console.warn('getIntegrations: integrations table not available yet');
+  return { integrations: [] };
 }
 
 export async function connectIntegration(
   data: ConnectIntegrationRequest
 ): Promise<{ integration: Integration }> {
-  // In a real implementation, credentials would be encrypted server-side
-  // For now, we'll store them in config_json (this is not secure for production)
-  const { data: integration, error } = await supabase
-    .from('integrations')
-    .upsert(
-      {
-        provider: data.provider,
-        user_id: await getCurrentUserId(),
-        credentials_encrypted: JSON.stringify(data.credentials), // TODO: Encrypt server-side
-        config_json: data.config || {},
-        is_active: true,
-      },
-      {
-        onConflict: 'user_id,provider',
-      }
-    )
-    .select()
-    .single();
-
-  if (error) throw error;
-  return { integration };
+  // TODO: Implement when integrations table is created
+  console.warn('connectIntegration: integrations table not available yet');
+  throw new Error('Integrations feature not available yet. Database tables need to be created.');
 }
 
 export async function disconnectIntegration(integrationId: string): Promise<void> {
-  const { error } = await supabase
-    .from('integrations')
-    .delete()
-    .eq('id', integrationId);
-
-  if (error) throw error;
+  // TODO: Implement when integrations table is created
+  console.warn('disconnectIntegration: integrations table not available yet');
+  throw new Error('Integrations feature not available yet. Database tables need to be created.');
 }
 
 export async function updateIntegration(
   data: UpdateIntegrationRequest
 ): Promise<{ integration: Integration }> {
-  const updateData: any = {};
-  if (data.config !== undefined) updateData.config_json = data.config;
-  if (data.isActive !== undefined) updateData.is_active = data.isActive;
-  updateData.updated_at = new Date().toISOString();
-
-  const { data: integration, error } = await supabase
-    .from('integrations')
-    .update(updateData)
-    .eq('id', data.integrationId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return { integration };
+  // TODO: Implement when integrations table is created
+  console.warn('updateIntegration: integrations table not available yet');
+  throw new Error('Integrations feature not available yet. Database tables need to be created.');
 }
 
 // OAuth configuration for each integration

@@ -339,13 +339,13 @@ export default function Integrations() {
                                       </Button>
                                     </CollapsibleTrigger>
                                     <CollapsibleContent className="space-y-2 mt-2">
-                                      {integration.config_json?.workspace_name && (
+                                      {(integration.config_json as Record<string, unknown>)?.workspace_name && (
                                         <div className="text-xs">
                                           <span className="text-muted-foreground">
                                             Workspace:{" "}
                                           </span>
                                           <span className="font-medium">
-                                            {integration.config_json.workspace_name}
+                                            {(integration.config_json as Record<string, unknown>).workspace_name as string}
                                           </span>
                                         </div>
                                       )}

@@ -165,7 +165,7 @@ export function Sidebar({
         ))}
       </div>
 
-      {/* Usage */}
+      {/* Usage - commented out for now
       <div className="px-4 py-3 mx-2 border-t border-sidebar-border">
         <p className="text-xs text-muted-foreground mb-2">
           You have used 0 of 3 free chats.
@@ -180,6 +180,7 @@ export function Sidebar({
           Upgrade Now
         </Button>
       </div>
+      */}
 
       {/* Recent Chats */}
       <div className="flex-1 overflow-hidden flex flex-col">

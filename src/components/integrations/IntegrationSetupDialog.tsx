@@ -52,7 +52,7 @@ export function IntegrationSetupDialog({
           api_key: apiKey,
         },
         config: {
-          scopes: config.scopes,
+          scopes: [...config.scopes],
           workspace_id: workspaceId || undefined,
           workspace_name: workspaceName || undefined,
         },
