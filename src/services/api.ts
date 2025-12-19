@@ -68,20 +68,87 @@ export interface SaveChatResponse {
 }
 
 export async function saveChat(data: SaveChatRequest): Promise<SaveChatResponse> {
-  const headers = await getAuthHeaders();
+  try {
+    console.log('💬 saveChat called with:', data);
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/save-chat`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(data),
-  });
+    const userId = await getCurrentUserId();
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to save chat');
+    if (data.chatId) {
+      // Update existing chat
+      const { data: chat, error } = await supabase
+        .from('chats')
+        .update({
+          title: data.title,
+          project_id: data.projectId,
+          prd_document_id: data.prdDocumentId,
+          settings_json: data.settings,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', data.chatId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Save messages if provided
+      if (data.messages && data.messages.length > 0) {
+        const messageInserts = data.messages.map((msg, index) => ({
+          chat_id: data.chatId,
+          role: msg.role,
+          content: msg.content,
+          attachments_json: msg.attachments,
+          sequence_number: index,
+        }));
+
+        const { error: messagesError } = await supabase
+          .from('chat_messages')
+          .upsert(messageInserts);
+
+        if (messagesError) console.error('Failed to save messages:', messagesError);
+      }
+
+      console.log('✅ Chat updated:', chat);
+      return { chat };
+    } else {
+      // Create new chat
+      const { data: chat, error } = await supabase
+        .from('chats')
+        .insert({
+          user_id: userId,
+          title: data.title || 'New Chat',
+          project_id: data.projectId,
+          prd_document_id: data.prdDocumentId,
+          settings_json: data.settings,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Save messages if provided
+      if (data.messages && data.messages.length > 0) {
+        const messageInserts = data.messages.map((msg, index) => ({
+          chat_id: chat.id,
+          role: msg.role,
+          content: msg.content,
+          attachments_json: msg.attachments,
+          sequence_number: index,
+        }));
+
+        const { error: messagesError } = await supabase
+          .from('chat_messages')
+          .insert(messageInserts);
+
+        if (messagesError) console.error('Failed to save messages:', messagesError);
+      }
+
+      console.log('✅ Chat created:', chat);
+      return { chat };
+    }
+  } catch (error) {
+    console.error('❌ Failed to save chat:', error);
+    throw new Error(error instanceof Error ? error.message : 'Failed to save chat');
   }
-
-  return response.json();
 }
 
 export interface GetChatsResponse {
@@ -97,39 +164,63 @@ export async function getChats(params?: {
   limit?: number;
   offset?: number;
 }): Promise<GetChatsResponse> {
-  const headers = await getAuthHeaders();
-  const queryParams = new URLSearchParams();
+  try {
+    console.log('💬 getChats called with:', params);
 
-  if (params?.limit) queryParams.set('limit', params.limit.toString());
-  if (params?.offset) queryParams.set('offset', params.offset.toString());
+    const userId = await getCurrentUserId();
 
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/get-chats?${queryParams}`,
-    { headers }
-  );
+    let query = supabase
+      .from('chats')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to fetch chats');
+    if (params?.limit) {
+      query = query.limit(params.limit);
+    }
+
+    if (params?.offset) {
+      query = query.range(params.offset, params.offset + (params.limit || 50) - 1);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    console.log('✅ Chats fetched:', data?.length || 0);
+    return { chats: data || [] };
+  } catch (error) {
+    console.error('❌ Failed to fetch chats:', error);
+    throw new Error(error instanceof Error ? error.message : 'Failed to fetch chats');
   }
-
-  return response.json();
 }
 
 export async function getChat(chatId: string): Promise<GetChatResponse> {
-  const headers = await getAuthHeaders();
+  try {
+    console.log('💬 getChat called for:', chatId);
 
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/get-chats?chatId=${chatId}`,
-    { headers }
-  );
+    const { data: chat, error: chatError } = await supabase
+      .from('chats')
+      .select('*')
+      .eq('id', chatId)
+      .single();
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to fetch chat');
+    if (chatError) throw chatError;
+
+    const { data: messages, error: messagesError } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('chat_id', chatId)
+      .order('sequence_number', { ascending: true });
+
+    if (messagesError) throw messagesError;
+
+    console.log('✅ Chat fetched with', messages?.length || 0, 'messages');
+    return { chat, messages: messages || [] };
+  } catch (error) {
+    console.error('❌ Failed to fetch chat:', error);
+    throw new Error(error instanceof Error ? error.message : 'Failed to fetch chat');
   }
-
-  return response.json();
 }
 
 // =====================================================
@@ -154,20 +245,59 @@ export interface SaveDocumentResponse {
 export async function saveDocument(
   data: SaveDocumentRequest
 ): Promise<SaveDocumentResponse> {
-  const headers = await getAuthHeaders();
+  try {
+    console.log('📄 saveDocument called with:', data);
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/save-document`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(data),
-  });
+    const userId = await getCurrentUserId();
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to save document');
+    if (data.documentId) {
+      // Update existing document
+      const { data: document, error } = await supabase
+        .from('prd_documents')
+        .update({
+          title: data.title,
+          content_markdown: data.contentMarkdown,
+          content_json: data.contentJson,
+          status: data.status || 'draft',
+          visibility: data.visibility || 'private',
+          project_id: data.projectId,
+          template_id: data.templateId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', data.documentId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      console.log('✅ Document updated:', document);
+      return { document };
+    } else {
+      // Create new document
+      const { data: document, error } = await supabase
+        .from('prd_documents')
+        .insert({
+          user_id: userId,
+          title: data.title,
+          content_markdown: data.contentMarkdown,
+          content_json: data.contentJson,
+          status: data.status || 'draft',
+          visibility: data.visibility || 'private',
+          project_id: data.projectId,
+          template_id: data.templateId,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      console.log('✅ Document created:', document);
+      return { document };
+    }
+  } catch (error) {
+    console.error('❌ Failed to save document:', error);
+    throw new Error(error instanceof Error ? error.message : 'Failed to save document');
   }
-
-  return response.json();
 }
 
 export interface GetDocumentsResponse {
@@ -185,42 +315,67 @@ export async function getDocuments(params?: {
   status?: string;
   search?: string;
 }): Promise<GetDocumentsResponse> {
-  const headers = await getAuthHeaders();
-  const queryParams = new URLSearchParams();
+  try {
+    console.log('📄 getDocuments called with:', params);
 
-  if (params?.limit) queryParams.set('limit', params.limit.toString());
-  if (params?.offset) queryParams.set('offset', params.offset.toString());
-  if (params?.projectId) queryParams.set('projectId', params.projectId);
-  if (params?.status) queryParams.set('status', params.status);
-  if (params?.search) queryParams.set('search', params.search);
+    const userId = await getCurrentUserId();
 
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/get-documents?${queryParams}`,
-    { headers }
-  );
+    let query = supabase
+      .from('prd_documents')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to fetch documents');
+    if (params?.limit) {
+      query = query.limit(params.limit);
+    }
+
+    if (params?.offset) {
+      query = query.range(params.offset, params.offset + (params.limit || 50) - 1);
+    }
+
+    if (params?.projectId) {
+      query = query.eq('project_id', params.projectId);
+    }
+
+    if (params?.status) {
+      query = query.eq('status', params.status);
+    }
+
+    if (params?.search) {
+      query = query.ilike('title', `%${params.search}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    console.log('✅ Documents fetched:', data?.length || 0);
+    return { documents: data || [] };
+  } catch (error) {
+    console.error('❌ Failed to fetch documents:', error);
+    throw new Error(error instanceof Error ? error.message : 'Failed to fetch documents');
   }
-
-  return response.json();
 }
 
 export async function getDocument(documentId: string): Promise<GetDocumentResponse> {
-  const headers = await getAuthHeaders();
+  try {
+    console.log('📄 getDocument called for:', documentId);
 
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/get-documents?documentId=${documentId}`,
-    { headers }
-  );
+    const { data: document, error } = await supabase
+      .from('prd_documents')
+      .select('*')
+      .eq('id', documentId)
+      .single();
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to fetch document');
+    if (error) throw error;
+
+    console.log('✅ Document fetched:', document);
+    return { document };
+  } catch (error) {
+    console.error('❌ Failed to fetch document:', error);
+    throw new Error(error instanceof Error ? error.message : 'Failed to fetch document');
   }
-
-  return response.json();
 }
 
 // =====================================================
@@ -286,24 +441,38 @@ export async function getTemplates(params?: {
   limit?: number;
   visibility?: string;
 }): Promise<GetTemplatesResponse> {
-  const headers = await getAuthHeaders();
-  const queryParams = new URLSearchParams();
+  try {
+    console.log('📚 getTemplates API called with params:', params);
 
-  if (params?.limit) queryParams.set('limit', params.limit.toString());
-  if (params?.visibility) queryParams.set('visibility', params.visibility);
+    // Use direct Supabase query (edge function may not exist)
+    let query = supabase
+      .from('templates')
+      .select('*')
+      .order('is_custom', { ascending: true })
+      .order('created_at', { ascending: true });
 
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/get-templates?${queryParams}`,
-    { headers }
-  );
+    if (params?.limit) {
+      query = query.limit(params.limit);
+    }
 
-  if (!response.ok) {
-    // Return empty array if edge function doesn't exist (tables not created yet)
-    console.warn('Templates edge function not available, returning empty array');
-    return { templates: [] };
+    if (params?.visibility) {
+      query = query.eq('visibility', params.visibility);
+    }
+
+    console.log('📚 Executing Supabase query...');
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('❌ Supabase query error:', error);
+      throw error;
+    }
+
+    console.log('✅ Templates fetched successfully:', data?.length || 0);
+    return { templates: data || [] };
+  } catch (err) {
+    console.error('❌ Failed to fetch templates:', err);
+    throw new Error(err instanceof Error ? err.message : 'Failed to fetch templates');
   }
-
-  return response.json();
 }
 
 export interface CreateTemplateRequest {
@@ -324,23 +493,50 @@ export interface UpdateTemplateRequest {
 export async function createTemplate(
   data: CreateTemplateRequest
 ): Promise<{ template: Template }> {
-  // TODO: Implement when templates table is created
-  console.warn('createTemplate: templates table not available yet');
-  throw new Error('Templates feature not available yet. Database tables need to be created.');
+  const { data: template, error } = await supabase
+    .from('templates')
+    .insert({
+      name: data.name,
+      description: data.description,
+      sections_json: data.sections,
+      is_custom: true,
+      visibility: data.visibility || 'private',
+      owner_id: await getCurrentUserId(),
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { template };
 }
 
 export async function updateTemplate(
   data: UpdateTemplateRequest
 ): Promise<{ template: Template }> {
-  // TODO: Implement when templates table is created
-  console.warn('updateTemplate: templates table not available yet');
-  throw new Error('Templates feature not available yet. Database tables need to be created.');
+  const updateData: any = {};
+  if (data.name) updateData.name = data.name;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.sections) updateData.sections_json = data.sections;
+  if (data.visibility) updateData.visibility = data.visibility;
+
+  const { data: template, error } = await supabase
+    .from('templates')
+    .update(updateData)
+    .eq('id', data.templateId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { template };
 }
 
 export async function deleteTemplate(templateId: string): Promise<void> {
-  // TODO: Implement when templates table is created
-  console.warn('deleteTemplate: templates table not available yet');
-  throw new Error('Templates feature not available yet. Database tables need to be created.');
+  const { error } = await supabase
+    .from('templates')
+    .delete()
+    .eq('id', templateId);
+
+  if (error) throw error;
 }
 
 // =====================================================
@@ -368,31 +564,74 @@ export async function getProjects(params?: {
   limit?: number;
   search?: string;
 }): Promise<GetProjectsResponse> {
-  // TODO: Implement when projects table is created
-  console.warn('getProjects: projects table not available yet');
-  return { projects: [] };
+  try {
+    let query = supabase
+      .from('projects')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (params?.limit) {
+      query = query.limit(params.limit);
+    }
+
+    if (params?.search) {
+      query = query.ilike('name', `%${params.search}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+    return { projects: data || [] };
+  } catch (err) {
+    console.error('Failed to fetch projects:', err);
+    return { projects: [] };
+  }
 }
 
 export async function createProject(
   data: CreateProjectRequest
 ): Promise<{ project: Project }> {
-  // TODO: Implement when projects table is created
-  console.warn('createProject: projects table not available yet');
-  throw new Error('Projects feature not available yet. Database tables need to be created.');
+  const { data: project, error } = await supabase
+    .from('projects')
+    .insert({
+      name: data.name,
+      description: data.description,
+      visibility: data.visibility || 'private',
+      owner_id: await getCurrentUserId(),
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { project };
 }
 
 export async function updateProject(
   data: UpdateProjectRequest
 ): Promise<{ project: Project }> {
-  // TODO: Implement when projects table is created
-  console.warn('updateProject: projects table not available yet');
-  throw new Error('Projects feature not available yet. Database tables need to be created.');
+  const updateData: any = {};
+  if (data.name) updateData.name = data.name;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.visibility) updateData.visibility = data.visibility;
+
+  const { data: project, error } = await supabase
+    .from('projects')
+    .update(updateData)
+    .eq('id', data.projectId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { project };
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
-  // TODO: Implement when projects table is created
-  console.warn('deleteProject: projects table not available yet');
-  throw new Error('Projects feature not available yet. Database tables need to be created.');
+  const { error } = await supabase
+    .from('projects')
+    .delete()
+    .eq('id', projectId);
+
+  if (error) throw error;
 }
 
 // =====================================================
