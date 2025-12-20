@@ -32,7 +32,6 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { id: "chats", label: "Chats", icon: MessageSquare, count: 0 },
-  { id: "documents", label: "Documents", icon: FileText, count: 0 },
   { id: "projects", label: "Projects", icon: FolderKanban },
   { id: "templates", label: "Templates", icon: LayoutTemplate },
   { id: "integrations", label: "Integrations", icon: Plug },

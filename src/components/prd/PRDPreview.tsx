@@ -27,6 +27,7 @@ import {
   ThumbsDown,
   RotateCcw,
   FolderKanban,
+  PanelRightClose,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -41,6 +42,7 @@ interface PRDPreviewProps {
   content: string;
   title?: string;
   onClose: () => void;
+  onCollapse?: () => void;
   isStreaming?: boolean;
   onSaveToProject?: (projectId?: string) => void;
   projects?: Project[];
@@ -55,6 +57,7 @@ export function PRDPreview({
   content,
   title,
   onClose,
+  onCollapse,
   isStreaming,
   onSaveToProject,
   projects = [],
@@ -410,11 +413,23 @@ export function PRDPreview({
               <Copy className="h-4 w-4" />
             )}
           </Button>
+          {onCollapse && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={onCollapse}
+              title="Collapse panel"
+            >
+              <PanelRightClose className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7"
             onClick={onClose}
+            title="Close"
           >
             <X className="h-4 w-4" />
           </Button>
