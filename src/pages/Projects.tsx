@@ -352,7 +352,7 @@ export default function Projects() {
               </div>
             </div>
 
-            <ScrollArea className="flex-1">
+            <div className="flex-1 overflow-y-auto">
               <div className="max-w-4xl mx-auto px-6 py-8">
                 {isEditing ? (
                   <div className="min-h-[600px]">
@@ -364,7 +364,7 @@ export default function Projects() {
                     />
                   </div>
                 ) : (
-                  <article className="prose prose-neutral dark:prose-invert max-w-none">
+                  <article className="prose prose-neutral dark:prose-invert max-w-none pb-20">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={markdownComponents}
@@ -374,7 +374,7 @@ export default function Projects() {
                   </article>
                 )}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         ) : selectedProject ? (
           // Project Documents View

@@ -22,9 +22,6 @@ import {
   Save,
   Download,
   History,
-  Sparkles,
-  ThumbsUp,
-  ThumbsDown,
   RotateCcw,
   FolderKanban,
   PanelRightClose,
@@ -35,8 +32,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import { generatePRD } from "@/services/api";
-import { cn } from "@/lib/utils";
 import type { Project } from "@/types/database";
+import { TextImprovementToolbar } from "./TextImprovementToolbar";
 
 interface PRDPreviewProps {
   content: string;
@@ -67,9 +64,9 @@ export function PRDPreview({
   const [currentVersionIndex, setCurrentVersionIndex] = useState(0);
   const [selectedText, setSelectedText] = useState("");
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
+  const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [regeneratedText, setRegeneratedText] = useState("");
-  const [showRegenerateUI, setShowRegenerateUI] = useState(false);
+  const [regeneratedText, setRegeneratedText] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [selectedProjectForSave, setSelectedProjectForSave] = useState<string | undefined>();
@@ -105,18 +102,25 @@ export function PRDPreview({
     toast.success("PRD downloaded");
   };
 
-  // Handle text selection
+  // Handle text selection - show floating toolbar
   const handleTextSelection = () => {
     const selection = window.getSelection();
     const selected = selection?.toString().trim();
 
-    if (selected && selected.length > 0) {
+    if (selected && selected.length > 10) {
       setSelectedText(selected);
 
-      // Get selection position in content
-      if (contentRef.current) {
-        const range = selection?.getRangeAt(0);
-        if (range) {
+      // Get selection position for floating toolbar
+      const range = selection?.getRangeAt(0);
+      if (range) {
+        const rect = range.getBoundingClientRect();
+        setSelectionPosition({
+          x: rect.left + rect.width / 2,
+          y: rect.bottom + 8,
+        });
+
+        // Get selection position in content for replacement
+        if (contentRef.current) {
           const preSelectionRange = range.cloneRange();
           preSelectionRange.selectNodeContents(contentRef.current);
           preSelectionRange.setEnd(range.startContainer, range.startOffset);
@@ -126,45 +130,53 @@ export function PRDPreview({
         }
       }
     } else {
-      setSelectedText("");
-      setSelectionRange(null);
-      setShowRegenerateUI(false);
+      // Only clear if no improved text is showing
+      if (!regeneratedText) {
+        setSelectedText("");
+        setSelectionRange(null);
+        setSelectionPosition(null);
+      }
     }
   };
 
-  // Regenerate selected text with AI
-  const handleRegenerate = async () => {
-    if (!selectedText) return;
+  // Clear selection when clicking outside
+  const handleClickOutside = () => {
+    if (!regeneratedText) {
+      setSelectedText("");
+      setSelectionRange(null);
+      setSelectionPosition(null);
+    }
+  };
 
+  // Regenerate selected text with AI - called from floating toolbar
+  const handleImprove = async (prompt: string) => {
     setIsRegenerating(true);
-    setRegeneratedText("");
+    setRegeneratedText(null);
 
     try {
-      const prompt = `Rewrite and improve the following text while maintaining its meaning and context:\n\n${selectedText}\n\nProvide ONLY the rewritten text, without any additional explanation or context.`;
-
       let fullResponse = "";
       await generatePRD(
         {
-          messages: [{ role: "user", content: prompt }],
+          messages: [{ role: "user", content: prompt + "\n\nProvide ONLY the improved text, without any additional explanation." }],
           settings: { tone: "balanced", docType: "single", hierarchy: "1-level" },
         },
         (chunk) => {
           fullResponse += chunk;
-          setRegeneratedText(fullResponse);
         }
       );
 
-      setShowRegenerateUI(true);
+      setRegeneratedText(fullResponse.trim());
     } catch (error) {
-      console.error("Failed to regenerate text:", error);
-      toast.error("Failed to regenerate text");
+      console.error("Failed to improve text:", error);
+      toast.error("Failed to improve text");
+      setRegeneratedText(null);
     } finally {
       setIsRegenerating(false);
     }
   };
 
-  // Accept regenerated text
-  const handleAccept = () => {
+  // Accept improved text
+  const handleAcceptImproved = () => {
     if (!selectionRange || !regeneratedText) return;
 
     const newContent =
@@ -176,21 +188,19 @@ export function PRDPreview({
     setVersions(prev => [...prev.slice(0, currentVersionIndex + 1), newVersion]);
     setCurrentVersionIndex(prev => prev + 1);
 
-    setShowRegenerateUI(false);
+    // Clear selection state
     setSelectedText("");
     setSelectionRange(null);
-    setRegeneratedText("");
-    toast.success("Changes accepted");
-
-    // Clear selection
+    setSelectionPosition(null);
+    setRegeneratedText(null);
+    toast.success("Changes applied");
     window.getSelection()?.removeAllRanges();
   };
 
-  // Decline regenerated text
-  const handleDecline = () => {
-    setShowRegenerateUI(false);
-    setRegeneratedText("");
-    toast.info("Changes declined");
+  // Reject improved text
+  const handleRejectImproved = () => {
+    setRegeneratedText(null);
+    toast.info("Changes discarded");
   };
 
   // Rollback to previous version
@@ -436,65 +446,16 @@ export function PRDPreview({
         </div>
       </div>
 
-      {/* Selection toolbar */}
-      {selectedText && !showRegenerateUI && (
-        <div className="px-4 py-2 bg-primary/5 border-b border-border flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">
-            {selectedText.length} characters selected
-          </span>
-          <Button
-            size="sm"
-            onClick={handleRegenerate}
-            disabled={isRegenerating}
-            className="gradient-brand text-primary-foreground"
-          >
-            <Sparkles className="h-3 w-3 mr-1" />
-            {isRegenerating ? "Regenerating..." : "Regenerate with AI"}
-          </Button>
-        </div>
-      )}
-
-      {/* Regenerate comparison UI */}
-      {showRegenerateUI && (
-        <div className="px-4 py-3 bg-muted/50 border-b border-border space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold">AI Suggestion</span>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleDecline}
-                className="h-7"
-              >
-                <ThumbsDown className="h-3 w-3 mr-1" />
-                Decline
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleAccept}
-                className="gradient-brand text-primary-foreground h-7"
-              >
-                <ThumbsUp className="h-3 w-3 mr-1" />
-                Accept
-              </Button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">Original:</span>
-              <div className="p-2 bg-card rounded border border-border text-sm">
-                {selectedText}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">Regenerated:</span>
-              <div className="p-2 bg-primary/5 rounded border border-primary/20 text-sm">
-                {regeneratedText || "Generating..."}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Floating Text Improvement Toolbar */}
+      <TextImprovementToolbar
+        selectedText={selectedText}
+        position={selectionPosition}
+        onImprove={handleImprove}
+        isProcessing={isRegenerating}
+        improvedText={regeneratedText}
+        onAccept={handleAcceptImproved}
+        onReject={handleRejectImproved}
+      />
 
       {/* Content */}
       <ScrollArea className="flex-1">
@@ -503,6 +464,7 @@ export function PRDPreview({
             ref={contentRef}
             className="px-6 py-6 max-w-4xl mx-auto select-text"
             onMouseUp={handleTextSelection}
+            onClick={handleClickOutside}
           >
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
