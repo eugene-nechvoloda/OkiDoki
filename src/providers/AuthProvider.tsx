@@ -8,59 +8,41 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// TEMPORARY: Create mock user outside component to ensure it's consistent
-const MOCK_USER = {
-  id: '00000000-0000-0000-0000-000000000001',
-  email: 'test@example.com',
-  app_metadata: {},
-  user_metadata: {},
-  aud: 'authenticated',
-  created_at: new Date().toISOString(),
-} as User;
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // TODO: Remove this mock user once OAuth is fixed
-  // TEMPORARY: Provide a mock user for testing
-  const [user, setUser] = useState<User | null>(MOCK_USER);
+  const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(false); // Set to false immediately
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // TEMPORARY: Log to verify mock user is set
-    console.log('🔧 AuthProvider initialized with mock user:', MOCK_USER.id);
-    console.log('👤 User state:', user);
-
-    // TEMPORARY: Skip real authentication, use mock user
     // Get initial session
-    // supabase.auth.getSession().then(({ data: { session } }) => {
-    //   setSession(session);
-    //   setUser(session?.user ?? null);
-    //   setLoading(false);
-    // });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
 
     // Listen for auth changes
-    // const {
-    //   data: { subscription },
-    // } = supabase.auth.onAuthStateChange((_event, session) => {
-    //   setSession(session);
-    //   setUser(session?.user ?? null);
-    //   setLoading(false);
-    // });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
 
-    // return () => subscription.unsubscribe();
+    return () => subscription.unsubscribe();
   }, []);
 
   const signInWithGoogle = async () => {
     console.log('🔐 Starting Google OAuth...');
-    console.log('📍 Redirect URL:', `${window.location.origin}/`);
-    console.log('🌐 Current origin:', window.location.origin);
-
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -80,13 +62,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('✅ OAuth initiated successfully', data);
   };
 
+  const signInWithEmail = async (email: string, password: string) => {
+    console.log('🔐 Signing in with email...');
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error('❌ Error signing in:', error);
+      throw error;
+    }
+
+    console.log('✅ Signed in successfully', data);
+  };
+
+  const signUpWithEmail = async (email: string, password: string) => {
+    console.log('📝 Signing up with email...');
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error('❌ Error signing up:', error);
+      throw error;
+    }
+
+    console.log('✅ Signed up successfully', data);
+  };
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Error signing out:', error);
       throw error;
     }
-    navigate('/');
+    navigate('/login');
   };
 
   const value = {
@@ -94,6 +106,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     loading,
     signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
     signOut,
   };
 

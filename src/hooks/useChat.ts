@@ -40,10 +40,9 @@ export function useChat() {
         const convertedChats: Chat[] = dbChats.map((dbChat) => ({
           id: dbChat.id,
           title: dbChat.title || "Untitled Chat",
-          messages: [], // Messages will be loaded when chat is selected
+          messages: [], // Messages are stored in messages_json
           createdAt: new Date(dbChat.created_at),
           updatedAt: new Date(dbChat.updated_at),
-          projectId: dbChat.project_id || undefined,
           settings: dbChat.settings_json || {},
         }));
 

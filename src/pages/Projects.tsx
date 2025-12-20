@@ -186,7 +186,7 @@ export default function Projects() {
         documentId: selectedDoc.id,
         title: selectedDoc.title,
         contentMarkdown: editContent,
-        status: selectedDoc.status,
+        status: selectedDoc.status as 'draft' | 'final' | 'archived',
       });
 
       toast.success("Document saved successfully");
