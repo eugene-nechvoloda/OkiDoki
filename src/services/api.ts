@@ -547,6 +547,21 @@ export interface GetTemplatesResponse {
   templates: Template[];
 }
 
+export interface CreateTemplateRequest {
+  name: string;
+  description?: string;
+  sections: string[];
+  visibility?: 'private' | 'public';
+}
+
+export interface UpdateTemplateRequest {
+  templateId: string;
+  name?: string;
+  description?: string;
+  sections?: string[];
+  visibility?: 'private' | 'public';
+}
+
 export async function getTemplates(params?: {
   limit?: number;
   visibility?: string;
