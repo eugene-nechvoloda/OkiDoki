@@ -66,13 +66,6 @@ export default function Templates() {
   async function loadTemplates() {
     console.log('📚 Loading templates...');
     console.log('📚 User:', user?.id);
-
-    if (!user) {
-      console.log('⚠️ No user, skipping template load');
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
       console.log('📚 Calling getTemplates API...');
