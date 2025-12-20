@@ -151,8 +151,8 @@ export default function Templates() {
     setEditingTemplate(template);
     setTemplateName(template.name);
     setTemplateDescription(template.description || "");
-    const sections = Array.isArray(template.sections_json)
-      ? template.sections_json
+    const sections = Array.isArray(template.sections)
+      ? template.sections
       : [];
     setTemplateSections(sections.length > 0 ? sections as string[] : [""]);
     setShowTemplateDialog(true);
@@ -201,8 +201,8 @@ export default function Templates() {
 
   // Handle using a template
   const handleUseTemplate = (template: Template) => {
-    const sections = Array.isArray(template.sections_json)
-      ? template.sections_json
+    const sections = Array.isArray(template.sections)
+      ? template.sections
       : [];
 
     setSelectedTemplate({
@@ -227,8 +227,8 @@ export default function Templates() {
   };
 
   const TemplateCard = ({ template }: { template: Template }) => {
-    const sections = Array.isArray(template.sections_json)
-      ? template.sections_json
+    const sections = Array.isArray(template.sections)
+      ? template.sections
       : [];
     const isExpanded = selectedTemplateId === template.id;
 

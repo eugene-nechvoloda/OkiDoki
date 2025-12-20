@@ -104,7 +104,7 @@ export default function Integrations() {
   };
 
   const getIntegrationByProvider = (provider: IntegrationProvider) => {
-    return integrations.find((i) => i.provider === provider && i.is_active);
+    return integrations.find((i) => i.provider === provider && i.status === 'connected');
   };
 
   const exportIntegrations: Array<{

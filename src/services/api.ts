@@ -14,17 +14,13 @@ import type {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-// TEMPORARY: Mock user ID for testing (matches AuthProvider mock user)
-const MOCK_USER_ID = '00000000-0000-0000-0000-000000000001';
-
-// Helper to get current user ID (temporary mock during testing)
+// Helper to get current user ID from authenticated session
 async function getCurrentUserId(): Promise<string> {
-  // TODO: Remove this mock and use real auth once OAuth is fixed
-  return MOCK_USER_ID;
-
-  // Real implementation (commented out):
-  // const { data: { user } } = await supabase.auth.getUser();
-  // return user?.id || '';
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('Not authenticated');
+  }
+  return user.id;
 }
 
 // Helper to get auth headers
@@ -74,89 +70,43 @@ export async function saveChat(data: SaveChatRequest): Promise<SaveChatResponse>
     const userId = await getCurrentUserId();
 
     if (data.chatId) {
-      // Update existing chat
+      // Update existing chat - store messages in messages_json
       const { data: chat, error } = await supabase
         .from('chats')
         .update({
           title: data.title,
-          project_id: data.projectId,
-          prd_document_id: data.prdDocumentId,
           settings_json: data.settings,
+          messages_json: data.messages || [],
           updated_at: new Date().toISOString(),
         })
         .eq('id', data.chatId)
+        .eq('user_id', userId) // Ensure user owns this chat
         .select()
         .single();
 
-      if (error) throw error;
-
-      // Save messages if provided
-      if (data.messages && data.messages.length > 0) {
-        // Delete existing messages first to avoid conflicts
-        const { error: deleteError } = await supabase
-          .from('chat_messages')
-          .delete()
-          .eq('chat_id', data.chatId);
-
-        if (deleteError) {
-          console.error('Failed to delete old messages:', deleteError);
-        }
-
-        // Insert fresh messages
-        const messageInserts = data.messages.map((msg, index) => ({
-          chat_id: data.chatId,
-          role: msg.role,
-          content: msg.content,
-          attachments_json: msg.attachments,
-          sequence_number: index,
-        }));
-
-        const { error: messagesError } = await supabase
-          .from('chat_messages')
-          .insert(messageInserts);
-
-        if (messagesError) {
-          console.error('Failed to save messages:', messagesError);
-          throw messagesError;
-        }
+      if (error) {
+        console.error('❌ Update chat error:', error);
+        throw error;
       }
 
       console.log('✅ Chat updated:', chat);
       return { chat };
     } else {
-      // Create new chat
+      // Create new chat - store messages in messages_json
       const { data: chat, error } = await supabase
         .from('chats')
         .insert({
           user_id: userId,
           title: data.title || 'New Chat',
-          project_id: data.projectId,
-          prd_document_id: data.prdDocumentId,
           settings_json: data.settings,
+          messages_json: data.messages || [],
         })
         .select()
         .single();
 
-      if (error) throw error;
-
-      // Save messages if provided
-      if (data.messages && data.messages.length > 0) {
-        const messageInserts = data.messages.map((msg, index) => ({
-          chat_id: chat.id,
-          role: msg.role,
-          content: msg.content,
-          attachments_json: msg.attachments,
-          sequence_number: index,
-        }));
-
-        const { error: messagesError } = await supabase
-          .from('chat_messages')
-          .insert(messageInserts);
-
-        if (messagesError) {
-          console.error('Failed to save messages:', messagesError);
-          throw messagesError;
-        }
+      if (error) {
+        console.error('❌ Create chat error:', error);
+        throw error;
       }
 
       console.log('✅ Chat created:', chat);
@@ -224,16 +174,12 @@ export async function getChat(chatId: string): Promise<GetChatResponse> {
 
     if (chatError) throw chatError;
 
-    const { data: messages, error: messagesError } = await supabase
-      .from('chat_messages')
-      .select('*')
-      .eq('chat_id', chatId)
-      .order('sequence_number', { ascending: true });
+    // Messages are stored in messages_json column, not a separate table
+    const messagesJson = chat.messages_json;
+    const messages = Array.isArray(messagesJson) ? messagesJson : [];
 
-    if (messagesError) throw messagesError;
-
-    console.log('✅ Chat fetched with', messages?.length || 0, 'messages');
-    return { chat, messages: messages || [] };
+    console.log('✅ Chat fetched with', messages.length, 'messages');
+    return { chat, messages: messages as ChatMessage[] };
   } catch (error) {
     console.error('❌ Failed to fetch chat:', error);
     throw new Error(error instanceof Error ? error.message : 'Failed to fetch chat');
@@ -282,19 +228,23 @@ export async function saveDocument(
           updated_at: new Date().toISOString(),
         })
         .eq('id', data.documentId)
+        .eq('owner_id', userId) // Ensure user owns this document
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Update document error:', error);
+        throw error;
+      }
 
       console.log('✅ Document updated:', document);
       return { document };
     } else {
-      // Create new document
+      // Create new document - use owner_id (correct column name)
       const { data: document, error } = await supabase
         .from('prd_documents')
         .insert({
-          user_id: userId,
+          owner_id: userId,
           title: data.title,
           content_markdown: data.contentMarkdown,
           content_json: data.contentJson,
@@ -306,7 +256,10 @@ export async function saveDocument(
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Create document error:', error);
+        throw error;
+      }
 
       console.log('✅ Document created:', document);
       return { document };
@@ -337,38 +290,31 @@ export async function getDocuments(params?: {
 
     const userId = await getCurrentUserId();
 
-    let query = supabase
+    const { data, error } = await supabase
       .from('prd_documents')
       .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (params?.limit) {
-      query = query.limit(params.limit);
-    }
-
-    if (params?.offset) {
-      query = query.range(params.offset, params.offset + (params.limit || 50) - 1);
-    }
-
-    if (params?.projectId) {
-      query = query.eq('project_id', params.projectId);
-    }
-
-    if (params?.status) {
-      query = query.eq('status', params.status);
-    }
-
-    if (params?.search) {
-      query = query.ilike('title', `%${params.search}%`);
-    }
-
-    const { data, error } = await query;
+      .eq('owner_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(params?.limit || 100);
 
     if (error) throw error;
 
-    console.log('✅ Documents fetched:', data?.length || 0);
-    return { documents: data || [] };
+    let documents = data || [];
+
+    // Apply filters
+    if (params?.projectId) {
+      documents = documents.filter(d => d.project_id === params.projectId);
+    }
+    if (params?.status) {
+      documents = documents.filter(d => d.status === params.status);
+    }
+    if (params?.search) {
+      const search = params.search.toLowerCase();
+      documents = documents.filter(d => d.title.toLowerCase().includes(search));
+    }
+
+    console.log('✅ Documents fetched:', documents.length);
+    return { documents };
   } catch (error) {
     console.error('❌ Failed to fetch documents:', error);
     throw new Error(error instanceof Error ? error.message : 'Failed to fetch documents');
@@ -461,23 +407,12 @@ export async function getTemplates(params?: {
   try {
     console.log('📚 getTemplates API called with params:', params);
 
-    // Use direct Supabase query (edge function may not exist)
-    let query = supabase
+    const { data, error } = await supabase
       .from('templates')
       .select('*')
       .order('is_custom', { ascending: true })
-      .order('created_at', { ascending: true });
-
-    if (params?.limit) {
-      query = query.limit(params.limit);
-    }
-
-    if (params?.visibility) {
-      query = query.eq('visibility', params.visibility);
-    }
-
-    console.log('📚 Executing Supabase query...');
-    const { data, error } = await query;
+      .order('created_at', { ascending: true })
+      .limit(params?.limit || 100);
 
     if (error) {
       console.error('❌ Supabase query error:', error);
@@ -510,40 +445,48 @@ export interface UpdateTemplateRequest {
 export async function createTemplate(
   data: CreateTemplateRequest
 ): Promise<{ template: Template }> {
+  const userId = await getCurrentUserId();
+  
   const { data: template, error } = await supabase
     .from('templates')
     .insert({
       name: data.name,
       description: data.description,
-      sections_json: data.sections,
+      sections: data.sections, // Correct column name
       is_custom: true,
-      visibility: data.visibility || 'private',
-      owner_id: await getCurrentUserId(),
+      user_id: userId, // Correct column name
     })
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error('❌ Create template error:', error);
+    throw error;
+  }
   return { template };
 }
 
 export async function updateTemplate(
   data: UpdateTemplateRequest
 ): Promise<{ template: Template }> {
+  const userId = await getCurrentUserId();
   const updateData: any = {};
   if (data.name) updateData.name = data.name;
   if (data.description !== undefined) updateData.description = data.description;
-  if (data.sections) updateData.sections_json = data.sections;
-  if (data.visibility) updateData.visibility = data.visibility;
+  if (data.sections) updateData.sections = data.sections; // Correct column name
 
   const { data: template, error } = await supabase
     .from('templates')
     .update(updateData)
     .eq('id', data.templateId)
+    .eq('user_id', userId) // Ensure user owns this template
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error('❌ Update template error:', error);
+    throw error;
+  }
   return { template };
 }
 
@@ -608,37 +551,45 @@ export async function getProjects(params?: {
 export async function createProject(
   data: CreateProjectRequest
 ): Promise<{ project: Project }> {
+  const userId = await getCurrentUserId();
+  
   const { data: project, error } = await supabase
     .from('projects')
     .insert({
       name: data.name,
       description: data.description,
-      visibility: data.visibility || 'private',
-      owner_id: await getCurrentUserId(),
+      user_id: userId, // Correct column name
     })
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error('❌ Create project error:', error);
+    throw error;
+  }
   return { project };
 }
 
 export async function updateProject(
   data: UpdateProjectRequest
 ): Promise<{ project: Project }> {
+  const userId = await getCurrentUserId();
   const updateData: any = {};
   if (data.name) updateData.name = data.name;
   if (data.description !== undefined) updateData.description = data.description;
-  if (data.visibility) updateData.visibility = data.visibility;
 
   const { data: project, error } = await supabase
     .from('projects')
     .update(updateData)
     .eq('id', data.projectId)
+    .eq('user_id', userId) // Ensure user owns this project
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error('❌ Update project error:', error);
+    throw error;
+  }
   return { project };
 }
 
