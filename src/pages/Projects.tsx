@@ -15,6 +15,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -65,6 +75,10 @@ export default function Projects() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
+
+  // Delete confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
 
   // Load projects on mount
   useEffect(() => {
@@ -146,18 +160,26 @@ export default function Projects() {
   };
 
   const handleDeleteProject = async (projectId: string) => {
-    if (!confirm("Are you sure you want to delete this project? All documents will remain but be unassigned.")) return;
+    setProjectToDelete(projectId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteProject = async () => {
+    if (!projectToDelete) return;
 
     try {
-      await deleteProject(projectId);
+      await deleteProject(projectToDelete);
       toast.success("Project deleted successfully");
       await loadProjects();
-      if (selectedProject?.id === projectId) {
+      if (selectedProject?.id === projectToDelete) {
         setSelectedProject(null);
       }
     } catch (error) {
       console.error("Failed to delete project:", error);
       toast.error("Failed to delete project");
+    } finally {
+      setDeleteConfirmOpen(false);
+      setProjectToDelete(null);
     }
   };
 
@@ -648,6 +670,27 @@ export default function Projects() {
           </>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this project? All documents will remain but be unassigned. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteProject}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
