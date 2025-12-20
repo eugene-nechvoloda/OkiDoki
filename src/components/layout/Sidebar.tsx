@@ -70,6 +70,16 @@ export function Sidebar({
     onNavigate(id);
   };
 
+  const handleSelectChat = (chatId: string) => {
+    // Allow opening any historical chat from any page.
+    // If we're not on the chat route, navigate there and let Index load it.
+    if (location.pathname !== "/") {
+      navigate("/", { state: { chatId } });
+      return;
+    }
+    onSelectChat(chatId);
+  };
+
   if (isCollapsed) {
     return (
       <div className="h-full w-14 bg-sidebar border-r border-sidebar-border flex flex-col items-center py-4 gap-4">
@@ -195,7 +205,7 @@ export function Sidebar({
               <Button
                 key={chat.id}
                 variant="ghost"
-                onClick={() => onSelectChat(chat.id)}
+                onClick={() => handleSelectChat(chat.id)}
                 className={cn(
                   "w-full justify-start text-left text-sm text-sidebar-foreground hover:bg-sidebar-accent mb-1 truncate",
                   currentChatId === chat.id && "bg-sidebar-accent"
