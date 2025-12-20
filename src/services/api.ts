@@ -14,13 +14,14 @@ import type {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-// Helper to get current user ID from authenticated session
+// TODO: Replace with real auth when OAuth is configured
+// Mock user ID for testing without authentication
+const MOCK_USER_ID = '00000000-0000-0000-0000-000000000001';
+
+// Helper to get current user ID - falls back to mock for testing
 async function getCurrentUserId(): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    throw new Error('Not authenticated');
-  }
-  return user.id;
+  return user?.id || MOCK_USER_ID;
 }
 
 // Helper to get auth headers
