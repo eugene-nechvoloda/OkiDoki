@@ -24,13 +24,8 @@ export function useChat() {
     console.log('🔍 useChat - User is null?', !user);
   }, [user]);
 
-  // Load chat history on mount
+  // Load chat history on mount (works in guest mode too)
   useEffect(() => {
-    if (!user) {
-      console.log('⚠️ useChat - Skipping chat history load, no user');
-      return;
-    }
-
     async function loadChatHistory() {
       try {
         setIsLoadingHistory(true);
@@ -86,13 +81,8 @@ export function useChat() {
       console.log('📨 User at sendMessage time:', user);
       console.log('📨 User ID:', user?.id);
 
-      if (!user) {
-        console.error('❌ No user found in sendMessage - showing error toast');
-        toast.error("Please sign in to continue");
-        return;
-      }
 
-      console.log('✅ User verified, proceeding with message send');
+      // No-auth mode: allow sending messages even when user is null.
 
       let chat = currentChat;
       if (!chat) {
