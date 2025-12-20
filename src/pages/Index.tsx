@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { PRDPreview } from "@/components/prd/PRDPreview";
@@ -12,6 +12,7 @@ import { PanelRightClose } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [previewClosed, setPreviewClosed] = useState(false);
@@ -34,6 +35,17 @@ const Index = () => {
   useEffect(() => {
     loadProjects();
   }, []);
+
+  // If we navigated here by selecting a chat from another page, open it automatically.
+  useEffect(() => {
+    const state = location.state as { chatId?: string } | null;
+    const chatId = state?.chatId;
+    if (!chatId) return;
+
+    selectChat(chatId);
+    // Clear the navigation state so refresh/back doesn't re-trigger.
+    navigate("/", { replace: true, state: null });
+  }, [location.state, navigate, selectChat]);
 
   async function loadProjects() {
     try {
