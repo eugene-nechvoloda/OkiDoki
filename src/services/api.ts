@@ -11,17 +11,30 @@ import type {
   Project,
   Integration,
 } from '@/types/database';
+import { getGuestId, readGuestJson, writeGuestJson } from "@/services/guestStorage";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-// TODO: Replace with real auth when OAuth is configured
-// Mock user ID for testing without authentication
-const MOCK_USER_ID = '00000000-0000-0000-0000-000000000001';
+const GUEST_STORAGE_KEYS = {
+  chats: "okidoki_guest_chats",
+  projects: "okidoki_guest_projects",
+  templates: "okidoki_guest_templates",
+  documents: "okidoki_guest_documents",
+} as const;
 
-// Helper to get current user ID - falls back to mock for testing
+async function isAuthenticated(): Promise<boolean> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return !!session?.user;
+}
+
+// Helper to get current user ID - falls back to a per-browser guest id
 async function getCurrentUserId(): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser();
-  return user?.id || MOCK_USER_ID;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user?.id || getGuestId();
 }
 
 // Helper to get auth headers
@@ -68,8 +81,36 @@ export async function saveChat(data: SaveChatRequest): Promise<SaveChatResponse>
   try {
     console.log('💬 saveChat called with:', data);
 
+    const authed = await isAuthenticated();
     const userId = await getCurrentUserId();
 
+    // Guest mode: store locally only (no login required)
+    if (!authed) {
+      const now = new Date().toISOString();
+      const chatId = data.chatId || crypto.randomUUID();
+
+      const chats = readGuestJson<Chat[]>(GUEST_STORAGE_KEYS.chats, []);
+      const existing = chats.find((c) => c.id === chatId);
+
+      const chat: Chat = {
+        id: chatId,
+        user_id: userId,
+        title: data.title ?? existing?.title ?? 'New Chat',
+        settings_json: data.settings ?? existing?.settings_json ?? {},
+        messages_json: data.messages ?? existing?.messages_json ?? [],
+        created_at: existing?.created_at ?? now,
+        updated_at: now,
+      };
+
+      writeGuestJson(
+        GUEST_STORAGE_KEYS.chats,
+        [chat, ...chats.filter((c) => c.id !== chatId)]
+      );
+
+      return { chat };
+    }
+
+    // Authenticated mode: persist to backend
     if (data.chatId) {
       // Update existing chat - store messages in messages_json
       const { data: chat, error } = await supabase
@@ -92,27 +133,27 @@ export async function saveChat(data: SaveChatRequest): Promise<SaveChatResponse>
 
       console.log('✅ Chat updated:', chat);
       return { chat };
-    } else {
-      // Create new chat - store messages in messages_json
-      const { data: chat, error } = await supabase
-        .from('chats')
-        .insert({
-          user_id: userId,
-          title: data.title || 'New Chat',
-          settings_json: data.settings,
-          messages_json: data.messages || [],
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ Create chat error:', error);
-        throw error;
-      }
-
-      console.log('✅ Chat created:', chat);
-      return { chat };
     }
+
+    // Create new chat - store messages in messages_json
+    const { data: chat, error } = await supabase
+      .from('chats')
+      .insert({
+        user_id: userId,
+        title: data.title || 'New Chat',
+        settings_json: data.settings,
+        messages_json: data.messages || [],
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Create chat error:', error);
+      throw error;
+    }
+
+    console.log('✅ Chat created:', chat);
+    return { chat };
   } catch (error) {
     console.error('❌ Failed to save chat:', error);
     throw new Error(error instanceof Error ? error.message : 'Failed to save chat');
@@ -135,7 +176,24 @@ export async function getChats(params?: {
   try {
     console.log('💬 getChats called with:', params);
 
+    const authed = await isAuthenticated();
     const userId = await getCurrentUserId();
+
+    // Guest mode: read from local storage
+    if (!authed) {
+      const all = readGuestJson<Chat[]>(GUEST_STORAGE_KEYS.chats, []).filter(
+        (c) => c.user_id === userId
+      );
+
+      const sorted = [...all].sort((a, b) =>
+        (b.updated_at || '').localeCompare(a.updated_at || '')
+      );
+
+      const offset = params?.offset ?? 0;
+      const limit = params?.limit ?? 50;
+
+      return { chats: sorted.slice(offset, offset + limit) };
+    }
 
     let query = supabase
       .from('chats')
@@ -167,10 +225,27 @@ export async function getChat(chatId: string): Promise<GetChatResponse> {
   try {
     console.log('💬 getChat called for:', chatId);
 
+    const authed = await isAuthenticated();
+    const userId = await getCurrentUserId();
+
+    if (!authed) {
+      const chats = readGuestJson<Chat[]>(GUEST_STORAGE_KEYS.chats, []).filter(
+        (c) => c.user_id === userId
+      );
+      const chat = chats.find((c) => c.id === chatId);
+      if (!chat) throw new Error('Chat not found');
+
+      const messagesJson = (chat as any).messages_json;
+      const messages = Array.isArray(messagesJson) ? messagesJson : [];
+
+      return { chat, messages: messages as ChatMessage[] };
+    }
+
     const { data: chat, error: chatError } = await supabase
       .from('chats')
       .select('*')
       .eq('id', chatId)
+      .eq('user_id', userId)
       .single();
 
     if (chatError) throw chatError;
@@ -212,7 +287,38 @@ export async function saveDocument(
   try {
     console.log('📄 saveDocument called with:', data);
 
+    const authed = await isAuthenticated();
     const userId = await getCurrentUserId();
+
+    // Guest mode: store locally only
+    if (!authed) {
+      const now = new Date().toISOString();
+      const documentId = data.documentId || crypto.randomUUID();
+
+      const documents = readGuestJson<PRDDocument[]>(GUEST_STORAGE_KEYS.documents, []);
+      const existing = documents.find((d) => d.id === documentId);
+
+      const document: PRDDocument = {
+        id: documentId,
+        owner_id: userId,
+        title: data.title,
+        content_markdown: data.contentMarkdown ?? existing?.content_markdown ?? null,
+        content_json: data.contentJson ?? existing?.content_json ?? null,
+        status: (data.status ?? existing?.status ?? 'draft') as any,
+        visibility: (data.visibility ?? existing?.visibility ?? 'private') as any,
+        project_id: data.projectId ?? existing?.project_id ?? null,
+        template_id: data.templateId ?? existing?.template_id ?? null,
+        created_at: existing?.created_at ?? now,
+        updated_at: now,
+      };
+
+      writeGuestJson(
+        GUEST_STORAGE_KEYS.documents,
+        [document, ...documents.filter((d) => d.id !== documentId)]
+      );
+
+      return { document };
+    }
 
     if (data.documentId) {
       // Update existing document
@@ -240,31 +346,31 @@ export async function saveDocument(
 
       console.log('✅ Document updated:', document);
       return { document };
-    } else {
-      // Create new document - use owner_id (correct column name)
-      const { data: document, error } = await supabase
-        .from('prd_documents')
-        .insert({
-          owner_id: userId,
-          title: data.title,
-          content_markdown: data.contentMarkdown,
-          content_json: data.contentJson,
-          status: data.status || 'draft',
-          visibility: data.visibility || 'private',
-          project_id: data.projectId,
-          template_id: data.templateId,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ Create document error:', error);
-        throw error;
-      }
-
-      console.log('✅ Document created:', document);
-      return { document };
     }
+
+    // Create new document - use owner_id (correct column name)
+    const { data: document, error } = await supabase
+      .from('prd_documents')
+      .insert({
+        owner_id: userId,
+        title: data.title,
+        content_markdown: data.contentMarkdown,
+        content_json: data.contentJson,
+        status: data.status || 'draft',
+        visibility: data.visibility || 'private',
+        project_id: data.projectId,
+        template_id: data.templateId,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Create document error:', error);
+      throw error;
+    }
+
+    console.log('✅ Document created:', document);
+    return { document };
   } catch (error) {
     console.error('❌ Failed to save document:', error);
     throw new Error(error instanceof Error ? error.message : 'Failed to save document');
@@ -289,7 +395,34 @@ export async function getDocuments(params?: {
   try {
     console.log('📄 getDocuments called with:', params);
 
+    const authed = await isAuthenticated();
     const userId = await getCurrentUserId();
+
+    if (!authed) {
+      let documents = readGuestJson<PRDDocument[]>(GUEST_STORAGE_KEYS.documents, []).filter(
+        (d) => d.owner_id === userId
+      );
+
+      // Apply filters
+      if (params?.projectId) {
+        documents = documents.filter((d) => d.project_id === params.projectId);
+      }
+      if (params?.status) {
+        documents = documents.filter((d) => d.status === params.status);
+      }
+      if (params?.search) {
+        const search = params.search.toLowerCase();
+        documents = documents.filter((d) => d.title.toLowerCase().includes(search));
+      }
+
+      documents = [...documents].sort((a, b) =>
+        (b.created_at || '').localeCompare(a.created_at || '')
+      );
+
+      const offset = params?.offset ?? 0;
+      const limit = params?.limit ?? 100;
+      return { documents: documents.slice(offset, offset + limit) };
+    }
 
     const { data, error } = await supabase
       .from('prd_documents')
@@ -304,14 +437,14 @@ export async function getDocuments(params?: {
 
     // Apply filters
     if (params?.projectId) {
-      documents = documents.filter(d => d.project_id === params.projectId);
+      documents = documents.filter((d) => d.project_id === params.projectId);
     }
     if (params?.status) {
-      documents = documents.filter(d => d.status === params.status);
+      documents = documents.filter((d) => d.status === params.status);
     }
     if (params?.search) {
       const search = params.search.toLowerCase();
-      documents = documents.filter(d => d.title.toLowerCase().includes(search));
+      documents = documents.filter((d) => d.title.toLowerCase().includes(search));
     }
 
     console.log('✅ Documents fetched:', documents.length);
@@ -326,10 +459,23 @@ export async function getDocument(documentId: string): Promise<GetDocumentRespon
   try {
     console.log('📄 getDocument called for:', documentId);
 
+    const authed = await isAuthenticated();
+    const userId = await getCurrentUserId();
+
+    if (!authed) {
+      const documents = readGuestJson<PRDDocument[]>(GUEST_STORAGE_KEYS.documents, []).filter(
+        (d) => d.owner_id === userId
+      );
+      const document = documents.find((d) => d.id === documentId);
+      if (!document) throw new Error('Document not found');
+      return { document };
+    }
+
     const { data: document, error } = await supabase
       .from('prd_documents')
       .select('*')
       .eq('id', documentId)
+      .eq('owner_id', userId)
       .single();
 
     if (error) throw error;
@@ -408,6 +554,9 @@ export async function getTemplates(params?: {
   try {
     console.log('📚 getTemplates API called with params:', params);
 
+    const authed = await isAuthenticated();
+    const userId = await getCurrentUserId();
+
     const { data, error } = await supabase
       .from('templates')
       .select('*')
@@ -420,6 +569,17 @@ export async function getTemplates(params?: {
       throw error;
     }
 
+    // Guest mode: only show built-ins from backend + this browser's custom templates
+    if (!authed) {
+      const builtIns = (data || []).filter((t) => !t.is_custom);
+      const localCustoms = readGuestJson<Template[]>(GUEST_STORAGE_KEYS.templates, []).filter(
+        (t) => t.user_id === userId
+      );
+
+      const merged = [...builtIns, ...localCustoms];
+      return { templates: merged.slice(0, params?.limit || 100) };
+    }
+
     console.log('✅ Templates fetched successfully:', data?.length || 0);
     return { templates: data || [] };
   } catch (err) {
@@ -428,26 +588,30 @@ export async function getTemplates(params?: {
   }
 }
 
-export interface CreateTemplateRequest {
-  name: string;
-  description?: string;
-  sections: string[];
-  visibility?: 'private' | 'public';
-}
-
-export interface UpdateTemplateRequest {
-  templateId: string;
-  name?: string;
-  description?: string;
-  sections?: string[];
-  visibility?: 'private' | 'public';
-}
-
 export async function createTemplate(
   data: CreateTemplateRequest
 ): Promise<{ template: Template }> {
+  const authed = await isAuthenticated();
   const userId = await getCurrentUserId();
-  
+
+  if (!authed) {
+    const now = new Date().toISOString();
+    const template: Template = {
+      id: crypto.randomUUID(),
+      name: data.name,
+      description: data.description ?? null,
+      sections: data.sections,
+      is_custom: true,
+      user_id: userId,
+      created_at: now,
+      updated_at: now,
+    };
+
+    const templates = readGuestJson<Template[]>(GUEST_STORAGE_KEYS.templates, []);
+    writeGuestJson(GUEST_STORAGE_KEYS.templates, [template, ...templates]);
+    return { template };
+  }
+
   const { data: template, error } = await supabase
     .from('templates')
     .insert({
@@ -470,7 +634,34 @@ export async function createTemplate(
 export async function updateTemplate(
   data: UpdateTemplateRequest
 ): Promise<{ template: Template }> {
+  const authed = await isAuthenticated();
   const userId = await getCurrentUserId();
+
+  if (!authed) {
+    const templates = readGuestJson<Template[]>(GUEST_STORAGE_KEYS.templates, []).filter(
+      (t) => t.user_id === userId
+    );
+    const existing = templates.find((t) => t.id === data.templateId);
+    if (!existing) throw new Error('Template not found');
+
+    const now = new Date().toISOString();
+    const updated: Template = {
+      ...existing,
+      name: data.name ?? existing.name,
+      description:
+        data.description !== undefined ? data.description ?? null : existing.description,
+      sections: data.sections ?? (existing.sections as any),
+      updated_at: now,
+    };
+
+    writeGuestJson(
+      GUEST_STORAGE_KEYS.templates,
+      [updated, ...templates.filter((t) => t.id !== data.templateId)]
+    );
+
+    return { template: updated };
+  }
+
   const updateData: any = {};
   if (data.name) updateData.name = data.name;
   if (data.description !== undefined) updateData.description = data.description;
@@ -492,10 +683,21 @@ export async function updateTemplate(
 }
 
 export async function deleteTemplate(templateId: string): Promise<void> {
-  const { error } = await supabase
-    .from('templates')
-    .delete()
-    .eq('id', templateId);
+  const authed = await isAuthenticated();
+  const userId = await getCurrentUserId();
+
+  if (!authed) {
+    const templates = readGuestJson<Template[]>(GUEST_STORAGE_KEYS.templates, []).filter(
+      (t) => t.user_id === userId
+    );
+    writeGuestJson(
+      GUEST_STORAGE_KEYS.templates,
+      templates.filter((t) => t.id !== templateId)
+    );
+    return;
+  }
+
+  const { error } = await supabase.from('templates').delete().eq('id', templateId);
 
   if (error) throw error;
 }
@@ -526,9 +728,30 @@ export async function getProjects(params?: {
   search?: string;
 }): Promise<GetProjectsResponse> {
   try {
+    const authed = await isAuthenticated();
+    const userId = await getCurrentUserId();
+
+    if (!authed) {
+      let projects = readGuestJson<Project[]>(GUEST_STORAGE_KEYS.projects, []).filter(
+        (p) => p.user_id === userId
+      );
+
+      if (params?.search) {
+        const search = params.search.toLowerCase();
+        projects = projects.filter((p) => p.name.toLowerCase().includes(search));
+      }
+
+      projects = [...projects].sort((a, b) =>
+        (b.created_at || '').localeCompare(a.created_at || '')
+      );
+
+      return { projects: projects.slice(0, params?.limit || 100) };
+    }
+
     let query = supabase
       .from('projects')
       .select('*')
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (params?.limit) {
@@ -552,8 +775,28 @@ export async function getProjects(params?: {
 export async function createProject(
   data: CreateProjectRequest
 ): Promise<{ project: Project }> {
+  const authed = await isAuthenticated();
   const userId = await getCurrentUserId();
-  
+
+  if (!authed) {
+    const now = new Date().toISOString();
+    const project: Project = {
+      id: crypto.randomUUID(),
+      user_id: userId,
+      name: data.name,
+      description: data.description ?? null,
+      status: 'active',
+      created_at: now,
+      updated_at: now,
+    };
+
+    const projects = readGuestJson<Project[]>(GUEST_STORAGE_KEYS.projects, []).filter(
+      (p) => p.user_id === userId
+    );
+    writeGuestJson(GUEST_STORAGE_KEYS.projects, [project, ...projects]);
+    return { project };
+  }
+
   const { data: project, error } = await supabase
     .from('projects')
     .insert({
@@ -574,7 +817,33 @@ export async function createProject(
 export async function updateProject(
   data: UpdateProjectRequest
 ): Promise<{ project: Project }> {
+  const authed = await isAuthenticated();
   const userId = await getCurrentUserId();
+
+  if (!authed) {
+    const projects = readGuestJson<Project[]>(GUEST_STORAGE_KEYS.projects, []).filter(
+      (p) => p.user_id === userId
+    );
+    const existing = projects.find((p) => p.id === data.projectId);
+    if (!existing) throw new Error('Project not found');
+
+    const now = new Date().toISOString();
+    const updated: Project = {
+      ...existing,
+      name: data.name ?? existing.name,
+      description:
+        data.description !== undefined ? data.description ?? null : existing.description,
+      updated_at: now,
+    };
+
+    writeGuestJson(
+      GUEST_STORAGE_KEYS.projects,
+      [updated, ...projects.filter((p) => p.id !== data.projectId)]
+    );
+
+    return { project: updated };
+  }
+
   const updateData: any = {};
   if (data.name) updateData.name = data.name;
   if (data.description !== undefined) updateData.description = data.description;
@@ -595,10 +864,21 @@ export async function updateProject(
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
-  const { error } = await supabase
-    .from('projects')
-    .delete()
-    .eq('id', projectId);
+  const authed = await isAuthenticated();
+  const userId = await getCurrentUserId();
+
+  if (!authed) {
+    const projects = readGuestJson<Project[]>(GUEST_STORAGE_KEYS.projects, []).filter(
+      (p) => p.user_id === userId
+    );
+    writeGuestJson(
+      GUEST_STORAGE_KEYS.projects,
+      projects.filter((p) => p.id !== projectId)
+    );
+    return;
+  }
+
+  const { error } = await supabase.from('projects').delete().eq('id', projectId);
 
   if (error) throw error;
 }
