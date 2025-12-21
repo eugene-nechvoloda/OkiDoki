@@ -1,10 +1,12 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { QuickActions } from "./QuickActions";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
+import { Badge } from "@/components/ui/badge";
 import type { Message, PRDTemplate, QuickActionType, ChatSettings } from "@/types";
 import { BUILT_IN_TEMPLATES } from "@/data/templates";
+import { Sliders, FileText, Layers } from "lucide-react";
 
 interface ChatInterfaceProps {
   messages: Message[];
@@ -14,6 +16,24 @@ interface ChatInterfaceProps {
   isLoading: boolean;
   streamingContent?: string;
 }
+
+const TONE_LABELS: Record<string, string> = {
+  balanced: "Balanced",
+  detailed: "Detailed",
+  concise: "Concise",
+  creative: "Creative",
+};
+
+const DOC_TYPE_LABELS: Record<string, string> = {
+  single: "Single doc",
+  project: "Project pack",
+};
+
+const HIERARCHY_LABELS: Record<string, string> = {
+  "1-level": "1 level",
+  "2-levels": "2 levels",
+  "3-levels": "3+ levels",
+};
 
 export function ChatInterface({
   messages,
@@ -25,6 +45,24 @@ export function ChatInterface({
 }: ChatInterfaceProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isNewChat = messages.length === 0;
+  
+  // Track active settings for display
+  const [activeSettings, setActiveSettings] = useState<ChatSettings>({
+    tone: "balanced",
+    docType: "single",
+    hierarchy: "1-level",
+    templateId: null,
+  });
+  
+  const handleSendMessage = (message: string, settings: ChatSettings) => {
+    setActiveSettings(settings);
+    onSendMessage(message, settings);
+  };
+  
+  const hasNonDefaultSettings = 
+    activeSettings.tone !== "balanced" || 
+    activeSettings.docType !== "single" || 
+    activeSettings.hierarchy !== "1-level";
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -64,7 +102,30 @@ export function ChatInterface({
             <span>/</span>
             <span>...</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Active Settings Badges */}
+            {hasNonDefaultSettings && (
+              <div className="flex items-center gap-1.5">
+                <Sliders className="h-3.5 w-3.5 text-muted-foreground" />
+                {activeSettings.tone !== "balanced" && (
+                  <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal">
+                    {TONE_LABELS[activeSettings.tone]}
+                  </Badge>
+                )}
+                {activeSettings.docType !== "single" && (
+                  <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal">
+                    <FileText className="h-3 w-3 mr-1" />
+                    {DOC_TYPE_LABELS[activeSettings.docType]}
+                  </Badge>
+                )}
+                {activeSettings.hierarchy !== "1-level" && (
+                  <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal">
+                    <Layers className="h-3 w-3 mr-1" />
+                    {HIERARCHY_LABELS[activeSettings.hierarchy]}
+                  </Badge>
+                )}
+              </div>
+            )}
             <span className="text-xs text-muted-foreground">
               {messages.length * 50} of 3000 words used
             </span>
@@ -93,7 +154,7 @@ export function ChatInterface({
             {/* Centered input */}
             <div className="w-full max-w-2xl mb-4">
               <ChatInput
-                onSend={onSendMessage}
+                onSend={handleSendMessage}
                 selectedTemplate={selectedTemplate}
                 onSelectTemplate={onSelectTemplate}
                 isLoading={isLoading}
@@ -144,7 +205,7 @@ export function ChatInterface({
         <div className="p-4 border-t border-border">
           <div className="max-w-3xl mx-auto">
             <ChatInput
-              onSend={onSendMessage}
+              onSend={handleSendMessage}
               selectedTemplate={selectedTemplate}
               onSelectTemplate={onSelectTemplate}
               isLoading={isLoading}
