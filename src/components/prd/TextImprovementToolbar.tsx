@@ -74,6 +74,7 @@ export function TextImprovementToolbar({
     return (
       <div
         ref={toolbarRef}
+        data-toolbar
         style={{ ...toolbarStyle, width: "400px" }}
         className="bg-card border border-border rounded-lg shadow-lg p-4 space-y-3 animate-in fade-in-0 zoom-in-95"
       >
@@ -127,6 +128,7 @@ export function TextImprovementToolbar({
     return (
       <div
         ref={toolbarRef}
+        data-toolbar
         style={toolbarStyle}
         className="bg-card border border-border rounded-lg shadow-lg px-4 py-3 flex items-center gap-2 animate-in fade-in-0 zoom-in-95"
       >
@@ -139,6 +141,7 @@ export function TextImprovementToolbar({
   return (
     <div
       ref={toolbarRef}
+      data-toolbar
       style={toolbarStyle}
       className="bg-card border border-border rounded-lg shadow-lg p-2 animate-in fade-in-0 zoom-in-95"
     >
