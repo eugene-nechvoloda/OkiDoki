@@ -15,6 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Copy,
   Check,
   X,
@@ -25,6 +31,7 @@ import {
   RotateCcw,
   FolderKanban,
   PanelRightClose,
+  FileDown,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -34,6 +41,7 @@ import type { Components } from "react-markdown";
 import { generatePRD } from "@/services/api";
 import type { Project } from "@/types/database";
 import { TextImprovementToolbar } from "./TextImprovementToolbar";
+import { exportToPDF } from "@/utils/pdfExport";
 
 interface PRDPreviewProps {
   content: string;
@@ -89,7 +97,7 @@ export function PRDPreview({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownload = () => {
+  const handleDownloadMarkdown = () => {
     const blob = new Blob([currentContent], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -99,7 +107,18 @@ export function PRDPreview({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success("PRD downloaded");
+    toast.success("PRD downloaded as Markdown");
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      toast.info("Generating PDF...");
+      await exportToPDF(currentContent, title || "PRD");
+      toast.success("PRD downloaded as PDF");
+    } catch (error) {
+      console.error("Failed to generate PDF:", error);
+      toast.error("Failed to generate PDF");
+    }
   };
 
   // Handle text selection - show floating toolbar
@@ -400,16 +419,29 @@ export function PRDPreview({
               Save
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={handleDownload}
-            title="Download as Markdown"
-            disabled={!currentContent}
-          >
-            <Download className="h-4 w-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                disabled={!currentContent}
+                title="Download"
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleDownloadPDF}>
+                <FileDown className="h-4 w-4 mr-2" />
+                Download as PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadMarkdown}>
+                <FileText className="h-4 w-4 mr-2" />
+                Download as Markdown
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="ghost"
             size="icon"
