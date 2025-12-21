@@ -93,7 +93,7 @@ export function PRDPreview({
   const handleCopy = async () => {
     await navigator.clipboard.writeText(currentContent);
     setCopied(true);
-    toast.success("PRD copied to clipboard");
+    toast.success("Raw markdown copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
   };
 
