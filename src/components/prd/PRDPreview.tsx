@@ -362,32 +362,33 @@ export function PRDPreview({
   return (
     <div className="h-full flex flex-col bg-card border-l border-border">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <FileText className="h-4 w-4 text-muted-foreground" />
-          <h2 className="font-medium text-sm truncate max-w-[200px]">
+      <div className="px-4 py-3 border-b border-border flex flex-col gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+          <h2 className="font-medium text-sm truncate min-w-0 flex-1">
             {title || "PRD Preview"}
           </h2>
           {isStreaming && (
-            <span className="flex items-center gap-1 text-xs text-primary">
+            <span className="flex items-center gap-1 text-xs text-primary shrink-0">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               Writing...
             </span>
           )}
           {versions.length > 1 && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground shrink-0">
               v{currentVersionIndex + 1}/{versions.length}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1">
+
+        <div className="flex items-center justify-end gap-1 flex-wrap">
           {/* Version history controls */}
           {versions.length > 1 && (
             <>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-7 w-7 shrink-0"
                 onClick={handleRollback}
                 disabled={currentVersionIndex === 0}
                 title="Previous version"
@@ -397,7 +398,7 @@ export function PRDPreview({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-7 w-7 shrink-0"
                 onClick={handleRollForward}
                 disabled={currentVersionIndex === versions.length - 1}
                 title="Next version"
@@ -411,7 +412,7 @@ export function PRDPreview({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-xs"
+              className="h-7 px-2 text-xs shrink-0"
               onClick={() => setShowProjectDialog(true)}
               title="Save to Project"
             >
@@ -419,12 +420,13 @@ export function PRDPreview({
               Save
             </Button>
           )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-7 w-7 shrink-0"
                 disabled={!currentContent}
                 title="Download"
               >
@@ -442,12 +444,14 @@ export function PRDPreview({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-7 w-7 shrink-0"
             onClick={handleCopy}
             disabled={!currentContent}
+            title="Copy raw markdown"
           >
             {copied ? (
               <Check className="h-4 w-4 text-green-500" />
@@ -455,21 +459,23 @@ export function PRDPreview({
               <Copy className="h-4 w-4" />
             )}
           </Button>
+
           {onCollapse && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-7 w-7 shrink-0"
               onClick={onCollapse}
               title="Collapse panel"
             >
               <PanelRightClose className="h-4 w-4" />
             </Button>
           )}
+
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-7 w-7 shrink-0"
             onClick={onClose}
             title="Close"
           >
