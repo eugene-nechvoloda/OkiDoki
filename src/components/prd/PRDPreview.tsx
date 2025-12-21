@@ -19,6 +19,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   Copy,
@@ -33,6 +35,7 @@ import {
   PanelRightClose,
   FileDown,
   Share2,
+  Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect, useRef } from "react";
@@ -40,10 +43,12 @@ import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
-import { generatePRD } from "@/services/api";
-import type { Project } from "@/types/database";
+import { generatePRD, INTEGRATION_CONFIG } from "@/services/api";
+import type { Project, Integration } from "@/types/database";
 import { TextImprovementToolbar } from "./TextImprovementToolbar";
 import { exportToPDF } from "@/utils/pdfExport";
+
+type IntegrationProvider = keyof typeof INTEGRATION_CONFIG;
 
 interface PRDPreviewProps {
   content: string;
@@ -81,6 +86,27 @@ export function PRDPreview({
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [selectedProjectForSave, setSelectedProjectForSave] = useState<string | undefined>();
   const [isExporting, setIsExporting] = useState(false);
+  const [exportingProvider, setExportingProvider] = useState<IntegrationProvider | null>(null);
+  const [connectedIntegrations, setConnectedIntegrations] = useState<Integration[]>([]);
+
+  // Load connected integrations
+  useEffect(() => {
+    const loadIntegrations = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('integrations')
+          .select('*')
+          .eq('status', 'connected');
+        
+        if (!error && data) {
+          setConnectedIntegrations(data);
+        }
+      } catch (err) {
+        console.log('Could not load integrations:', err);
+      }
+    };
+    loadIntegrations();
+  }, []);
 
   // Update versions when content changes
   useEffect(() => {
@@ -124,23 +150,30 @@ export function PRDPreview({
     }
   };
 
-  const handleExportToLinear = async () => {
+  const handleExportToIntegration = async (provider: IntegrationProvider) => {
     if (!currentContent) return;
     
+    const integration = connectedIntegrations.find(i => i.provider === provider);
+    const config = INTEGRATION_CONFIG[provider];
+    
     setIsExporting(true);
+    setExportingProvider(provider);
+    
     try {
-      toast.info("Exporting to Linear...");
+      toast.info(`Exporting to ${config.name}...`);
       
-      const { data, error } = await supabase.functions.invoke("export-to-linear", {
+      const { data, error } = await supabase.functions.invoke("export-to-integration", {
         body: {
+          provider,
           title: title || "PRD Document",
           content: currentContent,
+          integrationConfig: integration?.config_json,
         },
       });
 
       if (error) {
-        console.error("Export to Linear error:", error);
-        toast.error(error.message || "Failed to export to Linear");
+        console.error(`Export to ${config.name} error:`, error);
+        toast.error(error.message || `Failed to export to ${config.name}`);
         return;
       }
 
@@ -149,19 +182,23 @@ export function PRDPreview({
         return;
       }
 
-      if (data?.issue) {
-        toast.success(`Created Linear issue: ${data.issue.identifier}`);
-        // Open the Linear issue in a new tab
-        if (data.issue.url) {
-          window.open(data.issue.url, "_blank");
+      if (data?.success) {
+        toast.success(data.message || `Exported to ${config.name} successfully`);
+        if (data.url) {
+          window.open(data.url, "_blank");
         }
       }
     } catch (error) {
-      console.error("Failed to export to Linear:", error);
-      toast.error("Failed to export to Linear");
+      console.error(`Failed to export to ${config.name}:`, error);
+      toast.error(`Failed to export to ${config.name}`);
     } finally {
       setIsExporting(false);
+      setExportingProvider(null);
     }
+  };
+
+  const isIntegrationConnected = (provider: IntegrationProvider) => {
+    return connectedIntegrations.some(i => i.provider === provider && i.status === 'connected');
   };
 
   // Handle text selection - show floating toolbar
@@ -494,15 +531,39 @@ export function PRDPreview({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExportToLinear} disabled={isExporting}>
-                <svg className="h-4 w-4 mr-2" viewBox="0 0 100 100" fill="currentColor">
-                  <path d="M1.22541 61.5228c-.2225-.9485.90748-1.5459 1.59638-.857L39.3342 97.1782c.6889.6889.0915 1.8189-.857 1.5765C20.0515 94.4522 5.54779 79.9485 1.22541 61.5228Z"/>
-                  <path d="M.00189135 46.8891c-.01764375.2833.00228108.5765.06015688.8765.31445765 1.6385 1.50676185 2.9432 3.11628725 3.3855l24.79302052 6.7677c1.7576.4796 3.5643-.526 4.0439-2.2835l3.1027-11.3622c.4796-1.7575-.526-3.5642-2.2836-4.0438L8.03975 33.4607c-1.6096-.4394-3.31424.3352-4.0553 1.8115l-3.33791 6.6573a3.68556 3.68556 0 0 0-.64465 4.9596Z"/>
-                  <path d="M98.6846 30.2316l-8.1267 29.7824c-.4796 1.7575-2.2863 2.7631-4.0438 2.2836l-24.7931-6.7677c-1.7575-.4797-2.7631-2.2864-2.2835-4.044l7.3813-27.0453a3.68556 3.68556 0 0 1 4.3051-2.6737l24.3472 6.6421c1.7575.4797 2.7631 2.2864 2.2135 4.0226Z"/>
-                  <path d="M40.6322 12.1918l8.1267-29.78245c.4796-1.7575 2.2863-2.76306 4.0438-2.28351l24.7931 6.76768c1.7575.47961 2.7631 2.28641 2.2835 4.04398l-7.3813 27.0453a3.68556 3.68556 0 0 1-4.3051 2.6737l-24.3472-6.6421c-1.7575-.4797-2.7631-2.2864-2.2135-4.0226Z" transform="translate(0 30)"/>
-                </svg>
-                {isExporting ? "Exporting..." : "Export to Linear"}
-              </DropdownMenuItem>
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Export to Integration
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {(Object.keys(INTEGRATION_CONFIG) as IntegrationProvider[]).map((provider) => {
+                const config = INTEGRATION_CONFIG[provider];
+                const isConnected = isIntegrationConnected(provider);
+                const isThisExporting = isExporting && exportingProvider === provider;
+                
+                return (
+                  <DropdownMenuItem
+                    key={provider}
+                    onClick={() => handleExportToIntegration(provider)}
+                    disabled={isExporting || !isConnected}
+                    className="flex items-center gap-2"
+                  >
+                    <span className="text-base">{config.icon}</span>
+                    <span className="flex-1">{config.name}</span>
+                    {isThisExporting && <Loader2 className="h-3 w-3 animate-spin" />}
+                    {!isConnected && (
+                      <span className="text-xs text-muted-foreground">(Not connected)</span>
+                    )}
+                  </DropdownMenuItem>
+                );
+              })}
+              {connectedIntegrations.length === 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    Connect integrations in Settings → Integrations
+                  </div>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
