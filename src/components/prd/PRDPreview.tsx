@@ -206,12 +206,13 @@ export function PRDPreview({
     const selection = window.getSelection();
     const selected = selection?.toString().trim();
 
-    if (selected && selected.length > 10) {
-      setSelectedText(selected);
-
-      // Get selection position for floating toolbar
+    if (selected && selected.length > 10 && contentRef.current) {
+      // Check if selection is within our content
       const range = selection?.getRangeAt(0);
-      if (range) {
+      if (range && contentRef.current.contains(range.commonAncestorContainer)) {
+        setSelectedText(selected);
+
+        // Get selection position for floating toolbar
         const rect = range.getBoundingClientRect();
         setSelectionPosition({
           x: rect.left + rect.width / 2,
@@ -219,31 +220,32 @@ export function PRDPreview({
         });
 
         // Get selection position in content for replacement
-        if (contentRef.current) {
-          const preSelectionRange = range.cloneRange();
-          preSelectionRange.selectNodeContents(contentRef.current);
-          preSelectionRange.setEnd(range.startContainer, range.startOffset);
-          const start = preSelectionRange.toString().length;
-          const end = start + selected.length;
-          setSelectionRange({ start, end });
-        }
+        const preSelectionRange = range.cloneRange();
+        preSelectionRange.selectNodeContents(contentRef.current);
+        preSelectionRange.setEnd(range.startContainer, range.startOffset);
+        const start = preSelectionRange.toString().length;
+        const end = start + selected.length;
+        setSelectionRange({ start, end });
       }
-    } else {
-      // Only clear if no improved text is showing
-      if (!regeneratedText) {
-        setSelectedText("");
-        setSelectionRange(null);
-        setSelectionPosition(null);
-      }
+    } else if (!regeneratedText) {
+      // Only clear if no improved text is showing and selection is outside or empty
+      setSelectedText("");
+      setSelectionRange(null);
+      setSelectionPosition(null);
     }
   };
 
   // Clear selection when clicking outside
-  const handleClickOutside = () => {
+  const handleClickOutside = (e: React.MouseEvent) => {
     if (!regeneratedText) {
-      setSelectedText("");
-      setSelectionRange(null);
-      setSelectionPosition(null);
+      const target = e.target as HTMLElement;
+      // Don't clear if clicking on the toolbar itself
+      if (!target.closest('[data-toolbar]')) {
+        setSelectedText("");
+        setSelectionRange(null);
+        setSelectionPosition(null);
+        window.getSelection()?.removeAllRanges();
+      }
     }
   };
 
@@ -622,9 +624,8 @@ export function PRDPreview({
         {currentContent ? (
           <article
             ref={contentRef}
-            className="px-6 py-6 max-w-4xl mx-auto select-text"
+            className="px-6 py-6 max-w-4xl mx-auto"
             onMouseUp={handleTextSelection}
-            onClick={handleClickOutside}
           >
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
