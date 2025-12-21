@@ -362,48 +362,42 @@ export function PRDPreview({
   return (
     <div className="h-full flex flex-col bg-card border-l border-border">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border flex flex-col gap-2">
-        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+      <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0 max-w-[120px]">
           <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-          <h2 className="font-medium text-sm truncate min-w-0 flex-1">
-            {title || "PRD Preview"}
+          <h2 className="font-medium text-xs truncate" title={title || "PRD Preview"}>
+            {title || "PRD"}
           </h2>
           {isStreaming && (
-            <span className="flex items-center gap-1 text-xs text-primary shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              Writing...
-            </span>
-          )}
-          {versions.length > 1 && (
-            <span className="text-xs text-muted-foreground shrink-0">
-              v{currentVersionIndex + 1}/{versions.length}
-            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-1 flex-wrap">
-          {/* Version history controls */}
+        <div className="flex items-center gap-0.5">
           {versions.length > 1 && (
             <>
+              <span className="text-xs text-muted-foreground mr-1">
+                v{currentVersionIndex + 1}
+              </span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 shrink-0"
+                className="h-6 w-6"
                 onClick={handleRollback}
                 disabled={currentVersionIndex === 0}
                 title="Previous version"
               >
-                <RotateCcw className="h-4 w-4" />
+                <RotateCcw className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 shrink-0"
+                className="h-6 w-6"
                 onClick={handleRollForward}
                 disabled={currentVersionIndex === versions.length - 1}
                 title="Next version"
               >
-                <History className="h-4 w-4" />
+                <History className="h-3.5 w-3.5" />
               </Button>
             </>
           )}
@@ -411,13 +405,12 @@ export function PRDPreview({
           {onSaveToProject && currentContent && (
             <Button
               variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs shrink-0"
+              size="icon"
+              className="h-6 w-6"
               onClick={() => setShowProjectDialog(true)}
               title="Save to Project"
             >
-              <Save className="h-3 w-3 mr-1" />
-              Save
+              <Save className="h-3.5 w-3.5" />
             </Button>
           )}
 
@@ -426,21 +419,21 @@ export function PRDPreview({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 shrink-0"
+                className="h-6 w-6"
                 disabled={!currentContent}
                 title="Download"
               >
-                <Download className="h-4 w-4" />
+                <Download className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handleDownloadPDF}>
                 <FileDown className="h-4 w-4 mr-2" />
-                Download as PDF
+                PDF
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleDownloadMarkdown}>
                 <FileText className="h-4 w-4 mr-2" />
-                Download as Markdown
+                Markdown
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -448,15 +441,15 @@ export function PRDPreview({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 shrink-0"
+            className="h-6 w-6"
             onClick={handleCopy}
             disabled={!currentContent}
             title="Copy raw markdown"
           >
             {copied ? (
-              <Check className="h-4 w-4 text-green-500" />
+              <Check className="h-3.5 w-3.5 text-green-500" />
             ) : (
-              <Copy className="h-4 w-4" />
+              <Copy className="h-3.5 w-3.5" />
             )}
           </Button>
 
@@ -464,22 +457,22 @@ export function PRDPreview({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 shrink-0"
+              className="h-6 w-6"
               onClick={onCollapse}
               title="Collapse panel"
             >
-              <PanelRightClose className="h-4 w-4" />
+              <PanelRightClose className="h-3.5 w-3.5" />
             </Button>
           )}
 
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 shrink-0"
+            className="h-6 w-6"
             onClick={onClose}
             title="Close"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
