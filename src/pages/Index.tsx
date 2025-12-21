@@ -132,7 +132,7 @@ const Index = () => {
               </div>
             ) : (
               // Expanded state - show full preview
-              <div className="w-[400px] xl:w-[480px] animate-slide-in-left">
+              <div className="w-[480px] xl:w-[540px] animate-slide-in-left">
                 <PRDPreview
                   content={prdContent || streamingContent}
                   title={currentChat?.title}
