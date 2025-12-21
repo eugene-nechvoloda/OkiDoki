@@ -32,7 +32,9 @@ import {
   FolderKanban,
   PanelRightClose,
   FileDown,
+  Share2,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -78,6 +80,7 @@ export function PRDPreview({
   const contentRef = useRef<HTMLDivElement>(null);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [selectedProjectForSave, setSelectedProjectForSave] = useState<string | undefined>();
+  const [isExporting, setIsExporting] = useState(false);
 
   // Update versions when content changes
   useEffect(() => {
@@ -118,6 +121,46 @@ export function PRDPreview({
     } catch (error) {
       console.error("Failed to generate PDF:", error);
       toast.error("Failed to generate PDF");
+    }
+  };
+
+  const handleExportToLinear = async () => {
+    if (!currentContent) return;
+    
+    setIsExporting(true);
+    try {
+      toast.info("Exporting to Linear...");
+      
+      const { data, error } = await supabase.functions.invoke("export-to-linear", {
+        body: {
+          title: title || "PRD Document",
+          content: currentContent,
+        },
+      });
+
+      if (error) {
+        console.error("Export to Linear error:", error);
+        toast.error(error.message || "Failed to export to Linear");
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      if (data?.issue) {
+        toast.success(`Created Linear issue: ${data.issue.identifier}`);
+        // Open the Linear issue in a new tab
+        if (data.issue.url) {
+          window.open(data.issue.url, "_blank");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to export to Linear:", error);
+      toast.error("Failed to export to Linear");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -434,6 +477,31 @@ export function PRDPreview({
               <DropdownMenuItem onClick={handleDownloadMarkdown}>
                 <FileText className="h-4 w-4 mr-2" />
                 Markdown
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                disabled={!currentContent || isExporting}
+                title="Export to..."
+              >
+                <Share2 className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportToLinear} disabled={isExporting}>
+                <svg className="h-4 w-4 mr-2" viewBox="0 0 100 100" fill="currentColor">
+                  <path d="M1.22541 61.5228c-.2225-.9485.90748-1.5459 1.59638-.857L39.3342 97.1782c.6889.6889.0915 1.8189-.857 1.5765C20.0515 94.4522 5.54779 79.9485 1.22541 61.5228Z"/>
+                  <path d="M.00189135 46.8891c-.01764375.2833.00228108.5765.06015688.8765.31445765 1.6385 1.50676185 2.9432 3.11628725 3.3855l24.79302052 6.7677c1.7576.4796 3.5643-.526 4.0439-2.2835l3.1027-11.3622c.4796-1.7575-.526-3.5642-2.2836-4.0438L8.03975 33.4607c-1.6096-.4394-3.31424.3352-4.0553 1.8115l-3.33791 6.6573a3.68556 3.68556 0 0 0-.64465 4.9596Z"/>
+                  <path d="M98.6846 30.2316l-8.1267 29.7824c-.4796 1.7575-2.2863 2.7631-4.0438 2.2836l-24.7931-6.7677c-1.7575-.4797-2.7631-2.2864-2.2835-4.044l7.3813-27.0453a3.68556 3.68556 0 0 1 4.3051-2.6737l24.3472 6.6421c1.7575.4797 2.7631 2.2864 2.2135 4.0226Z"/>
+                  <path d="M40.6322 12.1918l8.1267-29.78245c.4796-1.7575 2.2863-2.76306 4.0438-2.28351l24.7931 6.76768c1.7575.47961 2.7631 2.28641 2.2835 4.04398l-7.3813 27.0453a3.68556 3.68556 0 0 1-4.3051 2.6737l-24.3472-6.6421c-1.7575-.4797-2.7631-2.2864-2.2135-4.0226Z" transform="translate(0 30)"/>
+                </svg>
+                {isExporting ? "Exporting..." : "Export to Linear"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
