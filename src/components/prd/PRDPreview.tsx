@@ -47,6 +47,7 @@ import { generatePRD, INTEGRATION_CONFIG } from "@/services/api";
 import type { Project, Integration } from "@/types/database";
 import { TextImprovementToolbar } from "./TextImprovementToolbar";
 import { exportToPDF } from "@/utils/pdfExport";
+import { cn } from "@/lib/utils";
 
 type IntegrationProvider = keyof typeof INTEGRATION_CONFIG;
 
@@ -203,13 +204,12 @@ export function PRDPreview({
 
   // Handle text selection - show floating toolbar
   const handleTextSelection = () => {
-    // Small delay to ensure selection is complete
-    setTimeout(() => {
-      const selection = window.getSelection();
-      const selected = selection?.toString().trim();
+    const selection = window.getSelection();
+    const selected = selection?.toString().trim();
 
-      if (selected && selected.length > 5 && contentRef.current) {
-        // Check if selection is within our content
+    if (selected && selected.length > 3 && contentRef.current) {
+      // Check if selection is within our content
+      try {
         const range = selection?.getRangeAt(0);
         if (range && contentRef.current.contains(range.commonAncestorContainer)) {
           setSelectedText(selected);
@@ -229,26 +229,34 @@ export function PRDPreview({
           const end = start + selected.length;
           setSelectionRange({ start, end });
         }
-      } else if (!regeneratedText) {
-        // Only clear if no improved text is showing and selection is outside or empty
-        setSelectedText("");
-        setSelectionRange(null);
-        setSelectionPosition(null);
+      } catch (e) {
+        // Selection might be invalid
       }
-    }, 10);
+    }
   };
 
-  // Use effect to add global pointer listeners for better selection detection (mouse + touchpad + keyboard)
+  // Clear selection state (but don't clear browser selection to keep highlight)
+  const clearSelectionState = () => {
+    if (regeneratedText) return; // Don't clear while showing result
+    setSelectedText("");
+    setSelectionRange(null);
+    setSelectionPosition(null);
+  };
+
+  // Use effect to add global pointer listeners for better selection detection
   useEffect(() => {
     const handleGlobalPointerUp = (e: PointerEvent) => {
-      if (contentRef.current?.contains(e.target as Node)) {
-        handleTextSelection();
-      }
+      // Small delay to ensure selection is complete
+      setTimeout(() => {
+        if (contentRef.current?.contains(e.target as Node)) {
+          handleTextSelection();
+        }
+      }, 10);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === "Shift" || e.key.startsWith("Arrow")) {
-        handleTextSelection();
+        setTimeout(() => handleTextSelection(), 10);
       }
     };
 
@@ -272,9 +280,7 @@ export function PRDPreview({
     // Don't clear if the pointer-down started inside the content (common when selecting text)
     if (contentRef.current?.contains(target)) return;
 
-    setSelectedText("");
-    setSelectionRange(null);
-    setSelectionPosition(null);
+    clearSelectionState();
     window.getSelection()?.removeAllRanges();
   };
 
@@ -327,10 +333,13 @@ export function PRDPreview({
     window.getSelection()?.removeAllRanges();
   };
 
-  // Reject improved text
+  // Reject improved text - also clears selection state
   const handleRejectImproved = () => {
     setRegeneratedText(null);
-    toast.info("Changes discarded");
+    setSelectedText("");
+    setSelectionRange(null);
+    setSelectionPosition(null);
+    window.getSelection()?.removeAllRanges();
   };
 
   // Rollback to previous version
@@ -644,7 +653,10 @@ export function PRDPreview({
         {currentContent ? (
           <article
             ref={contentRef}
-            className="px-6 py-6 max-w-4xl mx-auto select-text cursor-text"
+            className={cn(
+              "px-6 py-6 max-w-4xl mx-auto select-text cursor-text text-selectable",
+              selectedText && "has-active-selection"
+            )}
           >
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
