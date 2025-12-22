@@ -238,31 +238,44 @@ export function PRDPreview({
     }, 10);
   };
 
-  // Use effect to add global mouseup listener for better selection detection
+  // Use effect to add global pointer listeners for better selection detection (mouse + touchpad + keyboard)
   useEffect(() => {
-    const handleGlobalMouseUp = (e: MouseEvent) => {
-      // Only process if the click is within our content area
+    const handleGlobalPointerUp = (e: PointerEvent) => {
       if (contentRef.current?.contains(e.target as Node)) {
         handleTextSelection();
       }
     };
 
-    document.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift" || e.key.startsWith("Arrow")) {
+        handleTextSelection();
+      }
+    };
+
+    document.addEventListener("pointerup", handleGlobalPointerUp, true);
+    document.addEventListener("keyup", handleKeyUp, true);
+    return () => {
+      document.removeEventListener("pointerup", handleGlobalPointerUp, true);
+      document.removeEventListener("keyup", handleKeyUp, true);
+    };
   }, [regeneratedText]);
 
-  // Clear selection when clicking outside
-  const handleClickOutside = (e: React.MouseEvent) => {
-    if (!regeneratedText) {
-      const target = e.target as HTMLElement;
-      // Don't clear if clicking on the toolbar itself
-      if (!target.closest('[data-toolbar]')) {
-        setSelectedText("");
-        setSelectionRange(null);
-        setSelectionPosition(null);
-        window.getSelection()?.removeAllRanges();
-      }
-    }
+  // Clear selection when the user clicks outside the content/toolbar
+  const handlePointerDownOutside = (e: React.PointerEvent) => {
+    if (regeneratedText) return;
+
+    const target = e.target as HTMLElement;
+
+    // Don't clear if interacting with the toolbar
+    if (target.closest("[data-toolbar]")) return;
+
+    // Don't clear if the pointer-down started inside the content (common when selecting text)
+    if (contentRef.current?.contains(target)) return;
+
+    setSelectedText("");
+    setSelectionRange(null);
+    setSelectionPosition(null);
+    window.getSelection()?.removeAllRanges();
   };
 
   // Regenerate selected text with AI - called from floating toolbar
@@ -627,7 +640,7 @@ export function PRDPreview({
       />
 
       {/* Content */}
-      <ScrollArea className="flex-1" onClick={handleClickOutside}>
+      <ScrollArea className="flex-1" onPointerDownCapture={handlePointerDownOutside}>
         {currentContent ? (
           <article
             ref={contentRef}
