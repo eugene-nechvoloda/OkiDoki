@@ -291,32 +291,48 @@ export default function Projects() {
   };
 
   const handleTextSelection = () => {
-    const selection = window.getSelection();
-    const selected = selection?.toString().trim();
+    // Small delay to ensure selection is complete
+    setTimeout(() => {
+      const selection = window.getSelection();
+      const selected = selection?.toString().trim();
 
-    if (selected && selected.length > 10 && docContentRef.current) {
-      const range = selection?.getRangeAt(0);
-      if (range && docContentRef.current.contains(range.commonAncestorContainer)) {
-        setSelectedText(selected);
-        const rect = range.getBoundingClientRect();
-        setSelectionPosition({
-          x: rect.left + rect.width / 2,
-          y: rect.bottom + 8,
-        });
+      if (selected && selected.length > 5 && docContentRef.current) {
+        const range = selection?.getRangeAt(0);
+        if (range && docContentRef.current.contains(range.commonAncestorContainer)) {
+          setSelectedText(selected);
+          const rect = range.getBoundingClientRect();
+          setSelectionPosition({
+            x: rect.left + rect.width / 2,
+            y: rect.bottom + 8,
+          });
 
-        const preSelectionRange = range.cloneRange();
-        preSelectionRange.selectNodeContents(docContentRef.current);
-        preSelectionRange.setEnd(range.startContainer, range.startOffset);
-        const start = preSelectionRange.toString().length;
-        const end = start + selected.length;
-        setSelectionRange({ start, end });
+          const preSelectionRange = range.cloneRange();
+          preSelectionRange.selectNodeContents(docContentRef.current);
+          preSelectionRange.setEnd(range.startContainer, range.startOffset);
+          const start = preSelectionRange.toString().length;
+          const end = start + selected.length;
+          setSelectionRange({ start, end });
+        }
+      } else if (!regeneratedText) {
+        setSelectedText("");
+        setSelectionRange(null);
+        setSelectionPosition(null);
       }
-    } else if (!regeneratedText) {
-      setSelectedText("");
-      setSelectionRange(null);
-      setSelectionPosition(null);
-    }
+    }, 10);
   };
+
+  // Use effect to add global mouseup listener for better selection detection
+  useEffect(() => {
+    const handleGlobalMouseUp = (e: MouseEvent) => {
+      // Only process if the click is within our document content area
+      if (docContentRef.current?.contains(e.target as Node)) {
+        handleTextSelection();
+      }
+    };
+
+    document.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, [regeneratedText, selectedDoc]);
 
   const handleClickOutside = (e: React.MouseEvent) => {
     if (!regeneratedText) {
@@ -497,8 +513,7 @@ export default function Projects() {
                 ) : (
                   <article
                     ref={docContentRef}
-                    className="prose prose-neutral dark:prose-invert max-w-none pb-20"
-                    onMouseUp={handleTextSelection}
+                    className="prose prose-neutral dark:prose-invert max-w-none pb-20 select-text cursor-text"
                   >
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                       {editContent || "*No content*"}

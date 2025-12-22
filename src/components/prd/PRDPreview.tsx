@@ -203,37 +203,53 @@ export function PRDPreview({
 
   // Handle text selection - show floating toolbar
   const handleTextSelection = () => {
-    const selection = window.getSelection();
-    const selected = selection?.toString().trim();
+    // Small delay to ensure selection is complete
+    setTimeout(() => {
+      const selection = window.getSelection();
+      const selected = selection?.toString().trim();
 
-    if (selected && selected.length > 10 && contentRef.current) {
-      // Check if selection is within our content
-      const range = selection?.getRangeAt(0);
-      if (range && contentRef.current.contains(range.commonAncestorContainer)) {
-        setSelectedText(selected);
+      if (selected && selected.length > 5 && contentRef.current) {
+        // Check if selection is within our content
+        const range = selection?.getRangeAt(0);
+        if (range && contentRef.current.contains(range.commonAncestorContainer)) {
+          setSelectedText(selected);
 
-        // Get selection position for floating toolbar
-        const rect = range.getBoundingClientRect();
-        setSelectionPosition({
-          x: rect.left + rect.width / 2,
-          y: rect.bottom + 8,
-        });
+          // Get selection position for floating toolbar
+          const rect = range.getBoundingClientRect();
+          setSelectionPosition({
+            x: rect.left + rect.width / 2,
+            y: rect.bottom + 8,
+          });
 
-        // Get selection position in content for replacement
-        const preSelectionRange = range.cloneRange();
-        preSelectionRange.selectNodeContents(contentRef.current);
-        preSelectionRange.setEnd(range.startContainer, range.startOffset);
-        const start = preSelectionRange.toString().length;
-        const end = start + selected.length;
-        setSelectionRange({ start, end });
+          // Get selection position in content for replacement
+          const preSelectionRange = range.cloneRange();
+          preSelectionRange.selectNodeContents(contentRef.current);
+          preSelectionRange.setEnd(range.startContainer, range.startOffset);
+          const start = preSelectionRange.toString().length;
+          const end = start + selected.length;
+          setSelectionRange({ start, end });
+        }
+      } else if (!regeneratedText) {
+        // Only clear if no improved text is showing and selection is outside or empty
+        setSelectedText("");
+        setSelectionRange(null);
+        setSelectionPosition(null);
       }
-    } else if (!regeneratedText) {
-      // Only clear if no improved text is showing and selection is outside or empty
-      setSelectedText("");
-      setSelectionRange(null);
-      setSelectionPosition(null);
-    }
+    }, 10);
   };
+
+  // Use effect to add global mouseup listener for better selection detection
+  useEffect(() => {
+    const handleGlobalMouseUp = (e: MouseEvent) => {
+      // Only process if the click is within our content area
+      if (contentRef.current?.contains(e.target as Node)) {
+        handleTextSelection();
+      }
+    };
+
+    document.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, [regeneratedText]);
 
   // Clear selection when clicking outside
   const handleClickOutside = (e: React.MouseEvent) => {
@@ -611,12 +627,11 @@ export function PRDPreview({
       />
 
       {/* Content */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1" onClick={handleClickOutside}>
         {currentContent ? (
           <article
             ref={contentRef}
-            className="px-6 py-6 max-w-4xl mx-auto"
-            onMouseUp={handleTextSelection}
+            className="px-6 py-6 max-w-4xl mx-auto select-text cursor-text"
           >
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
