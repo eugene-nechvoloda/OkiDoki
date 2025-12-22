@@ -14,7 +14,210 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      chats: {
+        Row: {
+          created_at: string
+          id: string
+          messages_json: Json | null
+          settings_json: Json | null
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          messages_json?: Json | null
+          settings_json?: Json | null
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          messages_json?: Json | null
+          settings_json?: Json | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      integrations: {
+        Row: {
+          config_json: Json | null
+          created_at: string
+          id: string
+          provider: string
+          status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config_json?: Json | null
+          created_at?: string
+          id?: string
+          provider: string
+          status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config_json?: Json | null
+          created_at?: string
+          id?: string
+          provider?: string
+          status?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      prd_documents: {
+        Row: {
+          content_json: Json | null
+          content_markdown: string | null
+          created_at: string
+          id: string
+          owner_id: string
+          project_id: string | null
+          status: string | null
+          template_id: string | null
+          title: string
+          updated_at: string
+          visibility: string | null
+        }
+        Insert: {
+          content_json?: Json | null
+          content_markdown?: string | null
+          created_at?: string
+          id?: string
+          owner_id: string
+          project_id?: string | null
+          status?: string | null
+          template_id?: string | null
+          title: string
+          updated_at?: string
+          visibility?: string | null
+        }
+        Update: {
+          content_json?: Json | null
+          content_markdown?: string | null
+          created_at?: string
+          id?: string
+          owner_id?: string
+          project_id?: string | null
+          status?: string | null
+          template_id?: string | null
+          title?: string
+          updated_at?: string
+          visibility?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prd_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prd_documents_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          status?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_custom: boolean | null
+          name: string
+          sections: string[] | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_custom?: boolean | null
+          name: string
+          sections?: string[] | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_custom?: boolean | null
+          name?: string
+          sections?: string[] | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      usage_tracking: {
+        Row: {
+          action_type: string
+          created_at: string
+          id: string
+          metadata_json: Json | null
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          id?: string
+          metadata_json?: Json | null
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          id?: string
+          metadata_json?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

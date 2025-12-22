@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import type { Message, Chat, PRDTemplate, ChatSettings } from "@/types";
 import { BUILT_IN_TEMPLATES } from "@/data/templates";
-import { saveChat, getChats, saveDocument, generatePRD } from "@/services/api";
+import { saveChat, getChats, getChat, saveDocument, generatePRD } from "@/services/api";
 import { useAuth } from "@/providers/AuthProvider";
 
 export function useChat() {
@@ -24,13 +24,8 @@ export function useChat() {
     console.log('🔍 useChat - User is null?', !user);
   }, [user]);
 
-  // Load chat history on mount
+  // Load chat history on mount (works in guest mode too)
   useEffect(() => {
-    if (!user) {
-      console.log('⚠️ useChat - Skipping chat history load, no user');
-      return;
-    }
-
     async function loadChatHistory() {
       try {
         setIsLoadingHistory(true);
@@ -40,10 +35,9 @@ export function useChat() {
         const convertedChats: Chat[] = dbChats.map((dbChat) => ({
           id: dbChat.id,
           title: dbChat.title || "Untitled Chat",
-          messages: [], // Messages will be loaded when chat is selected
+          messages: [], // Messages are stored in messages_json
           createdAt: new Date(dbChat.created_at),
           updatedAt: new Date(dbChat.updated_at),
-          projectId: dbChat.project_id || undefined,
           settings: dbChat.settings_json || {},
         }));
 
@@ -74,12 +68,44 @@ export function useChat() {
     return newChat;
   }, []);
 
-  const selectChat = useCallback((chatId: string) => {
-    const chat = chats.find((c) => c.id === chatId);
-    if (chat) {
-      setCurrentChat(chat);
+  const selectChat = useCallback(async (chatId: string) => {
+    try {
+      // Fetch full chat with messages from the API
+      const { chat: fullChat, messages } = await getChat(chatId);
+      
+      // Convert to app format with messages
+      const chatWithMessages: Chat = {
+        id: fullChat.id,
+        title: fullChat.title || "Untitled Chat",
+        messages: messages.map((m: any) => ({
+          id: m.id || crypto.randomUUID(),
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+        })),
+        createdAt: new Date(fullChat.created_at),
+        updatedAt: new Date(fullChat.updated_at),
+      };
+      
+      setCurrentChat(chatWithMessages);
+      
+      // Also update the chats list with the full data
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? chatWithMessages : c))
+      );
+      
+      // If chat has assistant messages, show the last PRD content
+      const lastAssistant = chatWithMessages.messages
+        .filter((m) => m.role === "assistant")
+        .pop();
+      if (lastAssistant?.content) {
+        setPrdContent(lastAssistant.content);
+      }
+    } catch (error) {
+      console.error("Failed to load chat:", error);
+      toast.error("Failed to load chat");
     }
-  }, [chats]);
+  }, []);
 
   const sendMessage = useCallback(
     async (content: string, settings: ChatSettings) => {
@@ -87,13 +113,8 @@ export function useChat() {
       console.log('📨 User at sendMessage time:', user);
       console.log('📨 User ID:', user?.id);
 
-      if (!user) {
-        console.error('❌ No user found in sendMessage - showing error toast');
-        toast.error("Please sign in to continue");
-        return;
-      }
 
-      console.log('✅ User verified, proceeding with message send');
+      // No-auth mode: allow sending messages even when user is null.
 
       let chat = currentChat;
       if (!chat) {

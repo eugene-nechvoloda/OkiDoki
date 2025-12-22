@@ -34,11 +34,14 @@ function getToneInstructions(tone: string): string {
 function getDocTypeInstructions(docType: string): string {
   switch (docType) {
     case "project":
-      return `You are creating a PROJECT with multiple related documents. Structure your response as a collection of interconnected documents:
+      return `You are creating a PROJECT PRD (multiple docs combined). Treat the output as a comprehensive project pack.
+
+Required structure:
 - Start with a Project Overview document
-- Create separate logical documents for major sections (e.g., Technical Spec, User Stories, Design Requirements)
+- Then include separate documents for major areas (at minimum: Scope & Goals, Requirements, Technical/Architecture, Rollout, Risks)
 - Use clear document boundaries with "---" separators
-- Reference other documents where relevant`;
+- Each document should have its own title (#)
+- Cross-reference related sections where relevant`;
     case "single":
     default:
       return "You are creating a single, comprehensive document. Keep all content in one cohesive PRD.";
@@ -53,12 +56,16 @@ function getHierarchyInstructions(hierarchy: string): string {
 - Level 2: Subsections (###)
 Keep the structure relatively flat with clear main sections and their immediate subsections.`;
     case "3-levels":
-      return `Use a complex 3+ level document hierarchy:
-- Level 1: Major sections (##)
-- Level 2: Subsections (###)
-- Level 3: Detailed items (####)
-- Use nested bullet points for additional detail
-This allows for comprehensive, deeply organized documentation.`;
+      return `Use a complex 3+ level hierarchy and express requirements as:
+- Level 1: Epics (##)
+- Level 2: Initiatives (###)
+- Level 3: User Stories (####)
+
+Rules:
+- Include at least 2-5 Epics if the scope supports it
+- Each User Story must include Acceptance Criteria (bullet list)
+- Use IDs (E-01, I-01, US-01) where helpful
+- Keep the hierarchy consistent throughout the document`;
     case "1-level":
     default:
       return "Use a flat, 1-level structure with main sections only (##). Keep it simple and easy to scan.";

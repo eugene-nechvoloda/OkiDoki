@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { PRDPreview } from "@/components/prd/PRDPreview";
@@ -7,10 +7,14 @@ import { useChat } from "@/hooks/useChat";
 import { saveDocument, getProjects } from "@/services/api";
 import type { Project } from "@/types/database";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { PanelRightClose } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [previewClosed, setPreviewClosed] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
 
@@ -31,6 +35,17 @@ const Index = () => {
   useEffect(() => {
     loadProjects();
   }, []);
+
+  // If we navigated here by selecting a chat from another page, open it automatically.
+  useEffect(() => {
+    const state = location.state as { chatId?: string } | null;
+    const chatId = state?.chatId;
+    if (!chatId) return;
+
+    selectChat(chatId);
+    // Clear the navigation state so refresh/back doesn't re-trigger.
+    navigate("/", { replace: true, state: null });
+  }, [location.state, navigate, selectChat]);
 
   async function loadProjects() {
     try {
@@ -86,9 +101,9 @@ const Index = () => {
       />
 
       {/* Main content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Chat */}
-        <div className={shouldShowPreview ? "flex-1" : "flex-1"}>
+        <div className="flex-1">
           <ChatInterface
             messages={currentChat?.messages || []}
             selectedTemplate={selectedTemplate}
@@ -99,18 +114,37 @@ const Index = () => {
           />
         </div>
 
-        {/* PRD Preview */}
+        {/* PRD Preview - Collapsible */}
         {shouldShowPreview && (
-          <div className="w-[400px] xl:w-[480px] animate-slide-in-left">
-            <PRDPreview
-              content={prdContent || streamingContent}
-              title={currentChat?.title}
-              onClose={() => setPreviewClosed(true)}
-              isStreaming={isLoading && !!streamingContent}
-              onSaveToProject={handleSaveToProject}
-              projects={projects}
-            />
-          </div>
+          <>
+            {previewCollapsed ? (
+              // Collapsed state - show expand button
+              <div className="w-12 h-full border-l border-border bg-card flex flex-col items-center py-3 gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setPreviewCollapsed(false)}
+                  title="Expand PRD Preview"
+                  className="h-8 w-8"
+                >
+                  <PanelRightClose className="h-4 w-4 rotate-180" />
+                </Button>
+              </div>
+            ) : (
+              // Expanded state - show full preview
+              <div className="w-[480px] xl:w-[540px] animate-slide-in-left">
+                <PRDPreview
+                  content={prdContent || streamingContent}
+                  title={currentChat?.title}
+                  onClose={() => setPreviewClosed(true)}
+                  onCollapse={() => setPreviewCollapsed(true)}
+                  isStreaming={isLoading && !!streamingContent}
+                  onSaveToProject={handleSaveToProject}
+                  projects={projects}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

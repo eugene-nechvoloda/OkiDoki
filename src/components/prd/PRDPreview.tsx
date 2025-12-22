@@ -15,6 +15,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import {
   Copy,
   Check,
   X,
@@ -22,25 +30,31 @@ import {
   Save,
   Download,
   History,
-  Sparkles,
-  ThumbsUp,
-  ThumbsDown,
   RotateCcw,
   FolderKanban,
+  PanelRightClose,
+  FileDown,
+  Share2,
+  Loader2,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
-import { generatePRD } from "@/services/api";
-import { cn } from "@/lib/utils";
-import type { Project } from "@/types/database";
+import { generatePRD, INTEGRATION_CONFIG } from "@/services/api";
+import type { Project, Integration } from "@/types/database";
+import { TextImprovementToolbar } from "./TextImprovementToolbar";
+import { exportToPDF } from "@/utils/pdfExport";
+
+type IntegrationProvider = keyof typeof INTEGRATION_CONFIG;
 
 interface PRDPreviewProps {
   content: string;
   title?: string;
   onClose: () => void;
+  onCollapse?: () => void;
   isStreaming?: boolean;
   onSaveToProject?: (projectId?: string) => void;
   projects?: Project[];
@@ -55,6 +69,7 @@ export function PRDPreview({
   content,
   title,
   onClose,
+  onCollapse,
   isStreaming,
   onSaveToProject,
   projects = [],
@@ -64,12 +79,34 @@ export function PRDPreview({
   const [currentVersionIndex, setCurrentVersionIndex] = useState(0);
   const [selectedText, setSelectedText] = useState("");
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
+  const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [regeneratedText, setRegeneratedText] = useState("");
-  const [showRegenerateUI, setShowRegenerateUI] = useState(false);
+  const [regeneratedText, setRegeneratedText] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [selectedProjectForSave, setSelectedProjectForSave] = useState<string | undefined>();
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportingProvider, setExportingProvider] = useState<IntegrationProvider | null>(null);
+  const [connectedIntegrations, setConnectedIntegrations] = useState<Integration[]>([]);
+
+  // Load connected integrations
+  useEffect(() => {
+    const loadIntegrations = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('integrations')
+          .select('*')
+          .eq('status', 'connected');
+        
+        if (!error && data) {
+          setConnectedIntegrations(data);
+        }
+      } catch (err) {
+        console.log('Could not load integrations:', err);
+      }
+    };
+    loadIntegrations();
+  }, []);
 
   // Update versions when content changes
   useEffect(() => {
@@ -85,11 +122,11 @@ export function PRDPreview({
   const handleCopy = async () => {
     await navigator.clipboard.writeText(currentContent);
     setCopied(true);
-    toast.success("PRD copied to clipboard");
+    toast.success("Raw markdown copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownload = () => {
+  const handleDownloadMarkdown = () => {
     const blob = new Blob([currentContent], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -99,69 +136,148 @@ export function PRDPreview({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success("PRD downloaded");
+    toast.success("PRD downloaded as Markdown");
   };
 
-  // Handle text selection
+  const handleDownloadPDF = async () => {
+    try {
+      toast.info("Generating PDF...");
+      await exportToPDF(currentContent, title || "PRD");
+      toast.success("PRD downloaded as PDF");
+    } catch (error) {
+      console.error("Failed to generate PDF:", error);
+      toast.error("Failed to generate PDF");
+    }
+  };
+
+  const handleExportToIntegration = async (provider: IntegrationProvider) => {
+    if (!currentContent) return;
+    
+    const integration = connectedIntegrations.find(i => i.provider === provider);
+    const config = INTEGRATION_CONFIG[provider];
+    
+    setIsExporting(true);
+    setExportingProvider(provider);
+    
+    try {
+      toast.info(`Exporting to ${config.name}...`);
+      
+      const { data, error } = await supabase.functions.invoke("export-to-integration", {
+        body: {
+          provider,
+          title: title || "PRD Document",
+          content: currentContent,
+          integrationConfig: integration?.config_json,
+        },
+      });
+
+      if (error) {
+        console.error(`Export to ${config.name} error:`, error);
+        toast.error(error.message || `Failed to export to ${config.name}`);
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      if (data?.success) {
+        toast.success(data.message || `Exported to ${config.name} successfully`);
+        if (data.url) {
+          window.open(data.url, "_blank");
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to export to ${config.name}:`, error);
+      toast.error(`Failed to export to ${config.name}`);
+    } finally {
+      setIsExporting(false);
+      setExportingProvider(null);
+    }
+  };
+
+  const isIntegrationConnected = (provider: IntegrationProvider) => {
+    return connectedIntegrations.some(i => i.provider === provider && i.status === 'connected');
+  };
+
+  // Handle text selection - show floating toolbar
   const handleTextSelection = () => {
     const selection = window.getSelection();
     const selected = selection?.toString().trim();
 
-    if (selected && selected.length > 0) {
-      setSelectedText(selected);
+    if (selected && selected.length > 10 && contentRef.current) {
+      // Check if selection is within our content
+      const range = selection?.getRangeAt(0);
+      if (range && contentRef.current.contains(range.commonAncestorContainer)) {
+        setSelectedText(selected);
 
-      // Get selection position in content
-      if (contentRef.current) {
-        const range = selection?.getRangeAt(0);
-        if (range) {
-          const preSelectionRange = range.cloneRange();
-          preSelectionRange.selectNodeContents(contentRef.current);
-          preSelectionRange.setEnd(range.startContainer, range.startOffset);
-          const start = preSelectionRange.toString().length;
-          const end = start + selected.length;
-          setSelectionRange({ start, end });
-        }
+        // Get selection position for floating toolbar
+        const rect = range.getBoundingClientRect();
+        setSelectionPosition({
+          x: rect.left + rect.width / 2,
+          y: rect.bottom + 8,
+        });
+
+        // Get selection position in content for replacement
+        const preSelectionRange = range.cloneRange();
+        preSelectionRange.selectNodeContents(contentRef.current);
+        preSelectionRange.setEnd(range.startContainer, range.startOffset);
+        const start = preSelectionRange.toString().length;
+        const end = start + selected.length;
+        setSelectionRange({ start, end });
       }
-    } else {
+    } else if (!regeneratedText) {
+      // Only clear if no improved text is showing and selection is outside or empty
       setSelectedText("");
       setSelectionRange(null);
-      setShowRegenerateUI(false);
+      setSelectionPosition(null);
     }
   };
 
-  // Regenerate selected text with AI
-  const handleRegenerate = async () => {
-    if (!selectedText) return;
+  // Clear selection when clicking outside
+  const handleClickOutside = (e: React.MouseEvent) => {
+    if (!regeneratedText) {
+      const target = e.target as HTMLElement;
+      // Don't clear if clicking on the toolbar itself
+      if (!target.closest('[data-toolbar]')) {
+        setSelectedText("");
+        setSelectionRange(null);
+        setSelectionPosition(null);
+        window.getSelection()?.removeAllRanges();
+      }
+    }
+  };
 
+  // Regenerate selected text with AI - called from floating toolbar
+  const handleImprove = async (prompt: string) => {
     setIsRegenerating(true);
-    setRegeneratedText("");
+    setRegeneratedText(null);
 
     try {
-      const prompt = `Rewrite and improve the following text while maintaining its meaning and context:\n\n${selectedText}\n\nProvide ONLY the rewritten text, without any additional explanation or context.`;
-
       let fullResponse = "";
       await generatePRD(
         {
-          messages: [{ role: "user", content: prompt }],
+          messages: [{ role: "user", content: prompt + "\n\nProvide ONLY the improved text, without any additional explanation." }],
           settings: { tone: "balanced", docType: "single", hierarchy: "1-level" },
         },
         (chunk) => {
           fullResponse += chunk;
-          setRegeneratedText(fullResponse);
         }
       );
 
-      setShowRegenerateUI(true);
+      setRegeneratedText(fullResponse.trim());
     } catch (error) {
-      console.error("Failed to regenerate text:", error);
-      toast.error("Failed to regenerate text");
+      console.error("Failed to improve text:", error);
+      toast.error("Failed to improve text");
+      setRegeneratedText(null);
     } finally {
       setIsRegenerating(false);
     }
   };
 
-  // Accept regenerated text
-  const handleAccept = () => {
+  // Accept improved text
+  const handleAcceptImproved = () => {
     if (!selectionRange || !regeneratedText) return;
 
     const newContent =
@@ -173,21 +289,19 @@ export function PRDPreview({
     setVersions(prev => [...prev.slice(0, currentVersionIndex + 1), newVersion]);
     setCurrentVersionIndex(prev => prev + 1);
 
-    setShowRegenerateUI(false);
+    // Clear selection state
     setSelectedText("");
     setSelectionRange(null);
-    setRegeneratedText("");
-    toast.success("Changes accepted");
-
-    // Clear selection
+    setSelectionPosition(null);
+    setRegeneratedText(null);
+    toast.success("Changes applied");
     window.getSelection()?.removeAllRanges();
   };
 
-  // Decline regenerated text
-  const handleDecline = () => {
-    setShowRegenerateUI(false);
-    setRegeneratedText("");
-    toast.info("Changes declined");
+  // Reject improved text
+  const handleRejectImproved = () => {
+    setRegeneratedText(null);
+    toast.info("Changes discarded");
   };
 
   // Rollback to previous version
@@ -330,47 +444,42 @@ export function PRDPreview({
   return (
     <div className="h-full flex flex-col bg-card border-l border-border">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <FileText className="h-4 w-4 text-muted-foreground" />
-          <h2 className="font-medium text-sm truncate max-w-[200px]">
-            {title || "PRD Preview"}
+      <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0 max-w-[120px]">
+          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+          <h2 className="font-medium text-xs truncate" title={title || "PRD Preview"}>
+            {title || "PRD"}
           </h2>
           {isStreaming && (
-            <span className="flex items-center gap-1 text-xs text-primary">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              Writing...
-            </span>
-          )}
-          {versions.length > 1 && (
-            <span className="text-xs text-muted-foreground">
-              v{currentVersionIndex + 1}/{versions.length}
-            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />
           )}
         </div>
-        <div className="flex items-center gap-1">
-          {/* Version history controls */}
+
+        <div className="flex items-center gap-0.5">
           {versions.length > 1 && (
             <>
+              <span className="text-xs text-muted-foreground mr-1">
+                v{currentVersionIndex + 1}
+              </span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-6 w-6"
                 onClick={handleRollback}
                 disabled={currentVersionIndex === 0}
                 title="Previous version"
               >
-                <RotateCcw className="h-4 w-4" />
+                <RotateCcw className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-6 w-6"
                 onClick={handleRollForward}
                 disabled={currentVersionIndex === versions.length - 1}
                 title="Next version"
               >
-                <History className="h-4 w-4" />
+                <History className="h-3.5 w-3.5" />
               </Button>
             </>
           )}
@@ -378,115 +487,144 @@ export function PRDPreview({
           {onSaveToProject && currentContent && (
             <Button
               variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
+              size="icon"
+              className="h-6 w-6"
               onClick={() => setShowProjectDialog(true)}
               title="Save to Project"
             >
-              <Save className="h-3 w-3 mr-1" />
-              Save
+              <Save className="h-3.5 w-3.5" />
             </Button>
           )}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                disabled={!currentContent}
+                title="Download"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleDownloadPDF}>
+                <FileDown className="h-4 w-4 mr-2" />
+                PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadMarkdown}>
+                <FileText className="h-4 w-4 mr-2" />
+                Markdown
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                disabled={!currentContent || isExporting}
+                title="Export to..."
+              >
+                <Share2 className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Export to Integration
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {(Object.keys(INTEGRATION_CONFIG) as IntegrationProvider[]).map((provider) => {
+                const config = INTEGRATION_CONFIG[provider];
+                const isConnected = isIntegrationConnected(provider);
+                const isThisExporting = isExporting && exportingProvider === provider;
+                
+                return (
+                  <DropdownMenuItem
+                    key={provider}
+                    onClick={() => handleExportToIntegration(provider)}
+                    disabled={isExporting || !isConnected}
+                    className="flex items-center gap-2"
+                  >
+                    <span className="text-base">{config.icon}</span>
+                    <span className="flex-1">{config.name}</span>
+                    {isThisExporting && <Loader2 className="h-3 w-3 animate-spin" />}
+                    {!isConnected && (
+                      <span className="text-xs text-muted-foreground">(Not connected)</span>
+                    )}
+                  </DropdownMenuItem>
+                );
+              })}
+              {connectedIntegrations.length === 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    Connect integrations in Settings → Integrations
+                  </div>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
-            onClick={handleDownload}
-            title="Download as Markdown"
-            disabled={!currentContent}
-          >
-            <Download className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
+            className="h-6 w-6"
             onClick={handleCopy}
             disabled={!currentContent}
+            title="Copy raw markdown"
           >
             {copied ? (
-              <Check className="h-4 w-4 text-green-500" />
+              <Check className="h-3.5 w-3.5 text-green-500" />
             ) : (
-              <Copy className="h-4 w-4" />
+              <Copy className="h-3.5 w-3.5" />
             )}
           </Button>
+
+          {onCollapse && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={onCollapse}
+              title="Collapse panel"
+            >
+              <PanelRightClose className="h-3.5 w-3.5" />
+            </Button>
+          )}
+
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-6 w-6"
             onClick={onClose}
+            title="Close"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
 
-      {/* Selection toolbar */}
-      {selectedText && !showRegenerateUI && (
-        <div className="px-4 py-2 bg-primary/5 border-b border-border flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">
-            {selectedText.length} characters selected
-          </span>
-          <Button
-            size="sm"
-            onClick={handleRegenerate}
-            disabled={isRegenerating}
-            className="gradient-brand text-primary-foreground"
-          >
-            <Sparkles className="h-3 w-3 mr-1" />
-            {isRegenerating ? "Regenerating..." : "Regenerate with AI"}
-          </Button>
-        </div>
-      )}
-
-      {/* Regenerate comparison UI */}
-      {showRegenerateUI && (
-        <div className="px-4 py-3 bg-muted/50 border-b border-border space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold">AI Suggestion</span>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleDecline}
-                className="h-7"
-              >
-                <ThumbsDown className="h-3 w-3 mr-1" />
-                Decline
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleAccept}
-                className="gradient-brand text-primary-foreground h-7"
-              >
-                <ThumbsUp className="h-3 w-3 mr-1" />
-                Accept
-              </Button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">Original:</span>
-              <div className="p-2 bg-card rounded border border-border text-sm">
-                {selectedText}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">Regenerated:</span>
-              <div className="p-2 bg-primary/5 rounded border border-primary/20 text-sm">
-                {regeneratedText || "Generating..."}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Floating Text Improvement Toolbar */}
+      <TextImprovementToolbar
+        selectedText={selectedText}
+        position={selectionPosition}
+        onImprove={handleImprove}
+        isProcessing={isRegenerating}
+        improvedText={regeneratedText}
+        onAccept={handleAcceptImproved}
+        onReject={handleRejectImproved}
+      />
 
       {/* Content */}
       <ScrollArea className="flex-1">
         {currentContent ? (
           <article
             ref={contentRef}
-            className="px-6 py-6 max-w-4xl mx-auto select-text"
+            className="px-6 py-6 max-w-4xl mx-auto"
             onMouseUp={handleTextSelection}
           >
             <ReactMarkdown

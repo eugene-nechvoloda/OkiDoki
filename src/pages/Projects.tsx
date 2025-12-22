@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,7 +46,15 @@ import {
   Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getProjects, createProject, updateProject, deleteProject, getDocuments, saveDocument } from "@/services/api";
+import {
+  getProjects,
+  createProject,
+  updateProject,
+  deleteProject,
+  getDocuments,
+  saveDocument,
+  generatePRD,
+} from "@/services/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { useChat } from "@/hooks/useChat";
 import type { Project, PRDDocument } from "@/types/database";
@@ -44,6 +62,7 @@ import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
+import { TextImprovementToolbar } from "@/components/prd/TextImprovementToolbar";
 
 export default function Projects() {
   const navigate = useNavigate();
@@ -60,11 +79,23 @@ export default function Projects() {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
 
+  // Inline selection editing state (view mode)
+  const docContentRef = useRef<HTMLDivElement>(null);
+  const [selectedText, setSelectedText] = useState("");
+  const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
+  const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regeneratedText, setRegeneratedText] = useState<string | null>(null);
+
   // Project creation/edit state
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
+
+  // Delete confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
 
   // Load projects on mount
   useEffect(() => {
@@ -146,18 +177,26 @@ export default function Projects() {
   };
 
   const handleDeleteProject = async (projectId: string) => {
-    if (!confirm("Are you sure you want to delete this project? All documents will remain but be unassigned.")) return;
+    setProjectToDelete(projectId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteProject = async () => {
+    if (!projectToDelete) return;
 
     try {
-      await deleteProject(projectId);
+      await deleteProject(projectToDelete);
       toast.success("Project deleted successfully");
       await loadProjects();
-      if (selectedProject?.id === projectId) {
+      if (selectedProject?.id === projectToDelete) {
         setSelectedProject(null);
       }
     } catch (error) {
       console.error("Failed to delete project:", error);
       toast.error("Failed to delete project");
+    } finally {
+      setDeleteConfirmOpen(false);
+      setProjectToDelete(null);
     }
   };
 
@@ -176,29 +215,30 @@ export default function Projects() {
     setSelectedDoc(doc);
     setEditContent(doc.content_markdown || "");
     setIsEditing(false);
+    setSelectedText("");
+    setSelectionRange(null);
+    setSelectionPosition(null);
+    setIsRegenerating(false);
+    setRegeneratedText(null);
   };
 
   const handleSaveDocument = async () => {
     if (!selectedDoc) return;
 
     try {
-      await saveDocument({
+      const { document } = await saveDocument({
         documentId: selectedDoc.id,
         title: selectedDoc.title,
         contentMarkdown: editContent,
-        status: selectedDoc.status,
+        status: selectedDoc.status as "draft" | "final" | "archived",
       });
 
       toast.success("Document saved successfully");
       setIsEditing(false);
+      setSelectedDoc(document);
 
       if (selectedProject) {
         await loadProjectDocuments(selectedProject.id);
-      }
-
-      const updatedDoc = projectDocuments.find((d) => d.id === selectedDoc.id);
-      if (updatedDoc) {
-        setSelectedDoc(updatedDoc);
       }
     } catch (error) {
       console.error("Failed to save document:", error);
@@ -233,15 +273,9 @@ export default function Projects() {
       </p>
     ),
     strong: ({ children }) => (
-      <strong className="font-semibold text-foreground">
-        {children}
-      </strong>
+      <strong className="font-semibold text-foreground">{children}</strong>
     ),
-    em: ({ children }) => (
-      <em className="italic text-foreground">
-        {children}
-      </em>
-    ),
+    em: ({ children }) => <em className="italic text-foreground">{children}</em>,
     code: ({ children, className }) => {
       const isInline = !className;
       return isInline ? (
@@ -254,6 +288,104 @@ export default function Projects() {
         </code>
       );
     },
+  };
+
+  const handleTextSelection = () => {
+    const selection = window.getSelection();
+    const selected = selection?.toString().trim();
+
+    if (selected && selected.length > 10 && docContentRef.current) {
+      const range = selection?.getRangeAt(0);
+      if (range && docContentRef.current.contains(range.commonAncestorContainer)) {
+        setSelectedText(selected);
+        const rect = range.getBoundingClientRect();
+        setSelectionPosition({
+          x: rect.left + rect.width / 2,
+          y: rect.bottom + 8,
+        });
+
+        const preSelectionRange = range.cloneRange();
+        preSelectionRange.selectNodeContents(docContentRef.current);
+        preSelectionRange.setEnd(range.startContainer, range.startOffset);
+        const start = preSelectionRange.toString().length;
+        const end = start + selected.length;
+        setSelectionRange({ start, end });
+      }
+    } else if (!regeneratedText) {
+      setSelectedText("");
+      setSelectionRange(null);
+      setSelectionPosition(null);
+    }
+  };
+
+  const handleClickOutside = (e: React.MouseEvent) => {
+    if (!regeneratedText) {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-toolbar]')) {
+        setSelectedText("");
+        setSelectionRange(null);
+        setSelectionPosition(null);
+        window.getSelection()?.removeAllRanges();
+      }
+    }
+  };
+
+  const handleImproveSelection = async (prompt: string) => {
+    if (!selectedText) return;
+
+    setIsRegenerating(true);
+    setRegeneratedText(null);
+
+    try {
+      let fullResponse = "";
+      await generatePRD(
+        {
+          messages: [
+            {
+              role: "user",
+              content:
+                prompt +
+                "\n\nProvide ONLY the improved text, without any additional explanation.",
+            },
+          ],
+          settings: { tone: "balanced", docType: "single", hierarchy: "1-level" },
+        },
+        (chunk) => {
+          fullResponse += chunk;
+        }
+      );
+
+      setRegeneratedText(fullResponse.trim());
+    } catch (error) {
+      console.error("Failed to improve text:", error);
+      toast.error("Failed to improve text");
+      setRegeneratedText(null);
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const handleAcceptImproved = () => {
+    if (!selectionRange || !regeneratedText) return;
+
+    const newContent =
+      editContent.slice(0, selectionRange.start) +
+      regeneratedText +
+      editContent.slice(selectionRange.end);
+
+    setEditContent(newContent);
+
+    setSelectedText("");
+    setSelectionRange(null);
+    setSelectionPosition(null);
+    setRegeneratedText(null);
+    toast.success("Changes applied");
+    window.getSelection()?.removeAllRanges();
+  };
+
+  const handleRejectImproved = () => {
+    setRegeneratedText(null);
+    toast.info("Changes discarded");
   };
 
   return (
@@ -275,11 +407,11 @@ export default function Projects() {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0">
         {selectedDoc ? (
           // Document Editor View
-          <div className="flex-1 flex flex-col">
-            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-shrink-0 px-6 py-4 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Button
                   variant="ghost"
@@ -319,18 +451,39 @@ export default function Projects() {
                     </Button>
                   </>
                 ) : (
-                  <Button
-                    size="sm"
-                    onClick={() => setIsEditing(true)}
-                    className="gradient-brand text-primary-foreground"
-                  >
-                    Edit Document
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSaveDocument}
+                      disabled={editContent === (selectedDoc.content_markdown || "")}
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Changes
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => setIsEditing(true)}
+                      className="gradient-brand text-primary-foreground"
+                    >
+                      Edit Document
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
 
-            <ScrollArea className="flex-1">
+            <div className="flex-1 min-h-0 overflow-y-auto" onClick={handleClickOutside}>
+              <TextImprovementToolbar
+                selectedText={selectedText}
+                position={selectionPosition}
+                onImprove={handleImproveSelection}
+                isProcessing={isRegenerating}
+                improvedText={regeneratedText}
+                onAccept={handleAcceptImproved}
+                onReject={handleRejectImproved}
+              />
+
               <div className="max-w-4xl mx-auto px-6 py-8">
                 {isEditing ? (
                   <div className="min-h-[600px]">
@@ -342,17 +495,18 @@ export default function Projects() {
                     />
                   </div>
                 ) : (
-                  <article className="prose prose-neutral dark:prose-invert max-w-none">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={markdownComponents}
-                    >
-                      {selectedDoc.content_markdown || "*No content*"}
+                  <article
+                    ref={docContentRef}
+                    className="prose prose-neutral dark:prose-invert max-w-none pb-20"
+                    onMouseUp={handleTextSelection}
+                  >
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                      {editContent || "*No content*"}
                     </ReactMarkdown>
                   </article>
                 )}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         ) : selectedProject ? (
           // Project Documents View
@@ -648,6 +802,27 @@ export default function Projects() {
           </>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this project? All documents will remain but be unassigned. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteProject}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

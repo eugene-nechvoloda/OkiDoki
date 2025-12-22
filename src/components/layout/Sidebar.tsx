@@ -32,7 +32,6 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { id: "chats", label: "Chats", icon: MessageSquare, count: 0 },
-  { id: "documents", label: "Documents", icon: FileText, count: 0 },
   { id: "projects", label: "Projects", icon: FolderKanban },
   { id: "templates", label: "Templates", icon: LayoutTemplate },
   { id: "integrations", label: "Integrations", icon: Plug },
@@ -69,6 +68,16 @@ export function Sidebar({
     else if (id === "documents") navigate("/documents");
     else if (id === "integrations") navigate("/integrations");
     onNavigate(id);
+  };
+
+  const handleSelectChat = (chatId: string) => {
+    // Allow opening any historical chat from any page.
+    // If we're not on the chat route, navigate there and let Index load it.
+    if (location.pathname !== "/") {
+      navigate("/", { state: { chatId } });
+      return;
+    }
+    onSelectChat(chatId);
   };
 
   if (isCollapsed) {
@@ -196,7 +205,7 @@ export function Sidebar({
               <Button
                 key={chat.id}
                 variant="ghost"
-                onClick={() => onSelectChat(chat.id)}
+                onClick={() => handleSelectChat(chat.id)}
                 className={cn(
                   "w-full justify-start text-left text-sm text-sidebar-foreground hover:bg-sidebar-accent mb-1 truncate",
                   currentChatId === chat.id && "bg-sidebar-accent"

@@ -18,3 +18,9 @@ verify_jwt = true
 
 [functions.process-file]
 verify_jwt = true
+
+[functions.export-to-linear]
+verify_jwt = false
+
+[functions.export-to-integration]
+verify_jwt = false

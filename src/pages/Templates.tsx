@@ -15,6 +15,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -50,6 +60,10 @@ export default function Templates() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  
+  // Delete confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
 
   // Template creation/edit state
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
@@ -66,13 +80,6 @@ export default function Templates() {
   async function loadTemplates() {
     console.log('📚 Loading templates...');
     console.log('📚 User:', user?.id);
-
-    if (!user) {
-      console.log('⚠️ No user, skipping template load');
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
       console.log('📚 Calling getTemplates API...');
@@ -151,8 +158,8 @@ export default function Templates() {
     setEditingTemplate(template);
     setTemplateName(template.name);
     setTemplateDescription(template.description || "");
-    const sections = Array.isArray(template.sections_json)
-      ? template.sections_json
+    const sections = Array.isArray(template.sections)
+      ? template.sections
       : [];
     setTemplateSections(sections.length > 0 ? sections as string[] : [""]);
     setShowTemplateDialog(true);
@@ -164,15 +171,23 @@ export default function Templates() {
       return;
     }
 
-    if (!confirm("Are you sure you want to delete this template?")) return;
+    setTemplateToDelete(templateId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteTemplate = async () => {
+    if (!templateToDelete) return;
 
     try {
-      await deleteTemplate(templateId);
+      await deleteTemplate(templateToDelete);
       toast.success("Template deleted successfully");
       await loadTemplates();
     } catch (error) {
       console.error("Failed to delete template:", error);
       toast.error("Failed to delete template");
+    } finally {
+      setDeleteConfirmOpen(false);
+      setTemplateToDelete(null);
     }
   };
 
@@ -201,8 +216,8 @@ export default function Templates() {
 
   // Handle using a template
   const handleUseTemplate = (template: Template) => {
-    const sections = Array.isArray(template.sections_json)
-      ? template.sections_json
+    const sections = Array.isArray(template.sections)
+      ? template.sections
       : [];
 
     setSelectedTemplate({
@@ -227,8 +242,8 @@ export default function Templates() {
   };
 
   const TemplateCard = ({ template }: { template: Template }) => {
-    const sections = Array.isArray(template.sections_json)
-      ? template.sections_json
+    const sections = Array.isArray(template.sections)
+      ? template.sections
       : [];
     const isExpanded = selectedTemplateId === template.id;
 
@@ -536,6 +551,27 @@ export default function Templates() {
           </div>
         </ScrollArea>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Template</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this template? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteTemplate}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
