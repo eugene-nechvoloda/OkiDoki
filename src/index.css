@@ -174,4 +174,20 @@
     background-color: hsl(var(--border));
     border-radius: 3px;
   }
+
+  /* Text selection highlighting */
+  .text-selectable::selection {
+    background-color: hsl(var(--primary) / 0.3);
+    color: inherit;
+  }
+
+  .text-selectable::-moz-selection {
+    background-color: hsl(var(--primary) / 0.3);
+    color: inherit;
+  }
+
+  /* Persistent highlight for toolbar active state */
+  .has-active-selection::selection {
+    background-color: hsl(var(--primary) / 0.4);
+  }
 }

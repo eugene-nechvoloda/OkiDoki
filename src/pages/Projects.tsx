@@ -291,12 +291,11 @@ export default function Projects() {
   };
 
   const handleTextSelection = () => {
-    // Small delay to ensure selection is complete
-    setTimeout(() => {
-      const selection = window.getSelection();
-      const selected = selection?.toString().trim();
+    const selection = window.getSelection();
+    const selected = selection?.toString().trim();
 
-      if (selected && selected.length > 5 && docContentRef.current) {
+    if (selected && selected.length > 3 && docContentRef.current) {
+      try {
         const range = selection?.getRangeAt(0);
         if (range && docContentRef.current.contains(range.commonAncestorContainer)) {
           setSelectedText(selected);
@@ -313,25 +312,33 @@ export default function Projects() {
           const end = start + selected.length;
           setSelectionRange({ start, end });
         }
-      } else if (!regeneratedText) {
-        setSelectedText("");
-        setSelectionRange(null);
-        setSelectionPosition(null);
+      } catch (e) {
+        // Selection might be invalid
       }
-    }, 10);
+    }
   };
 
-  // Use effect to add global pointer listeners for better selection detection (mouse + touchpad + keyboard)
+  // Clear selection state (but don't clear browser selection to keep highlight)
+  const clearSelectionState = () => {
+    if (regeneratedText) return;
+    setSelectedText("");
+    setSelectionRange(null);
+    setSelectionPosition(null);
+  };
+
+  // Use effect to add global pointer listeners for better selection detection
   useEffect(() => {
     const handleGlobalPointerUp = (e: PointerEvent) => {
-      if (docContentRef.current?.contains(e.target as Node)) {
-        handleTextSelection();
-      }
+      setTimeout(() => {
+        if (docContentRef.current?.contains(e.target as Node)) {
+          handleTextSelection();
+        }
+      }, 10);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === "Shift" || e.key.startsWith("Arrow")) {
-        handleTextSelection();
+        setTimeout(() => handleTextSelection(), 10);
       }
     };
 
@@ -352,9 +359,7 @@ export default function Projects() {
     if (target.closest("[data-toolbar]")) return;
     if (docContentRef.current?.contains(target)) return;
 
-    setSelectedText("");
-    setSelectionRange(null);
-    setSelectionPosition(null);
+    clearSelectionState();
     window.getSelection()?.removeAllRanges();
   };
 
@@ -413,7 +418,10 @@ export default function Projects() {
 
   const handleRejectImproved = () => {
     setRegeneratedText(null);
-    toast.info("Changes discarded");
+    setSelectedText("");
+    setSelectionRange(null);
+    setSelectionPosition(null);
+    window.getSelection()?.removeAllRanges();
   };
 
   return (
@@ -525,7 +533,10 @@ export default function Projects() {
                 ) : (
                   <article
                     ref={docContentRef}
-                    className="prose prose-neutral dark:prose-invert max-w-none pb-20 select-text cursor-text"
+                    className={cn(
+                      "prose prose-neutral dark:prose-invert max-w-none pb-20 select-text cursor-text text-selectable",
+                      selectedText && "has-active-selection"
+                    )}
                   >
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                       {editContent || "*No content*"}
