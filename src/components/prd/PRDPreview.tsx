@@ -596,15 +596,6 @@ export function PRDPreview({
             </Button>
           )}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={onClose}
-            title="Close"
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
         </div>
       </div>
 
