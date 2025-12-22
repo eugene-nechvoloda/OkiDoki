@@ -321,29 +321,41 @@ export default function Projects() {
     }, 10);
   };
 
-  // Use effect to add global mouseup listener for better selection detection
+  // Use effect to add global pointer listeners for better selection detection (mouse + touchpad + keyboard)
   useEffect(() => {
-    const handleGlobalMouseUp = (e: MouseEvent) => {
-      // Only process if the click is within our document content area
+    const handleGlobalPointerUp = (e: PointerEvent) => {
       if (docContentRef.current?.contains(e.target as Node)) {
         handleTextSelection();
       }
     };
 
-    document.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift" || e.key.startsWith("Arrow")) {
+        handleTextSelection();
+      }
+    };
+
+    document.addEventListener("pointerup", handleGlobalPointerUp, true);
+    document.addEventListener("keyup", handleKeyUp, true);
+    return () => {
+      document.removeEventListener("pointerup", handleGlobalPointerUp, true);
+      document.removeEventListener("keyup", handleKeyUp, true);
+    };
   }, [regeneratedText, selectedDoc]);
 
-  const handleClickOutside = (e: React.MouseEvent) => {
-    if (!regeneratedText) {
-      const target = e.target as HTMLElement;
-      if (!target.closest('[data-toolbar]')) {
-        setSelectedText("");
-        setSelectionRange(null);
-        setSelectionPosition(null);
-        window.getSelection()?.removeAllRanges();
-      }
-    }
+  // Clear selection when the user clicks outside the document content/toolbar
+  const handlePointerDownOutside = (e: React.PointerEvent) => {
+    if (regeneratedText) return;
+
+    const target = e.target as HTMLElement;
+
+    if (target.closest("[data-toolbar]")) return;
+    if (docContentRef.current?.contains(target)) return;
+
+    setSelectedText("");
+    setSelectionRange(null);
+    setSelectionPosition(null);
+    window.getSelection()?.removeAllRanges();
   };
 
   const handleImproveSelection = async (prompt: string) => {
@@ -489,7 +501,7 @@ export default function Projects() {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto" onClick={handleClickOutside}>
+            <div className="flex-1 min-h-0 overflow-y-auto" onPointerDownCapture={handlePointerDownOutside}>
               <TextImprovementToolbar
                 selectedText={selectedText}
                 position={selectionPosition}
