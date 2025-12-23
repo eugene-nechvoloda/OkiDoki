@@ -31,6 +31,7 @@ import {
 } from "@/services/api";
 import type { Integration } from "@/types/database";
 import { IntegrationSetupDialog } from "@/components/integrations/IntegrationSetupDialog";
+import { IntegrationLogo } from "@/components/integrations/IntegrationLogos";
 import {
   Collapsible,
   CollapsibleContent,
@@ -280,8 +281,8 @@ export default function Integrations() {
                             >
                               <div className="flex items-start justify-between mb-3">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                                    <span className="text-xl">{config.icon}</span>
+                                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+                                    <IntegrationLogo provider={provider} className="w-6 h-6" />
                                   </div>
                                   <div>
                                     <h3 className="font-semibold flex items-center gap-2">
