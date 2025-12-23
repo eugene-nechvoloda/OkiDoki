@@ -72,10 +72,18 @@ export function TextImprovementToolbar({
 
   // Calculate position to keep toolbar in viewport
   const toolbarWidth = improvedText ? 420 : 380;
+  const padding = 16;
+  
+  // Clamp horizontal position to keep toolbar fully visible
+  const clampedX = Math.max(
+    padding + toolbarWidth / 2, 
+    Math.min(position.x, window.innerWidth - padding - toolbarWidth / 2)
+  );
+  
   const toolbarStyle: React.CSSProperties = {
     position: "fixed",
-    left: Math.max(16, Math.min(position.x - toolbarWidth / 2, window.innerWidth - toolbarWidth - 16)),
-    top: Math.max(16, position.y),
+    left: clampedX - toolbarWidth / 2,
+    top: Math.max(padding, position.y),
     zIndex: 1000,
     width: toolbarWidth,
   };
