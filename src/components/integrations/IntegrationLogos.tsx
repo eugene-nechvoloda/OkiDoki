@@ -1,5 +1,7 @@
 import React from "react";
 import linearLogo from "@/assets/logos/linear.png";
+import gammaLogo from "@/assets/logos/gamma.png";
+import napkinLogo from "@/assets/logos/napkin.png";
 
 export const ConfluenceLogo: React.FC<{ className?: string }> = ({ className }) => (
   <svg viewBox="0 0 256 246" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -23,19 +25,11 @@ export const LinearLogo: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 export const GammaLogo: React.FC<{ className?: string }> = ({ className }) => (
-  <svg viewBox="0 0 40 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="40" height="40" rx="8" fill="#0A21C0"/>
-    <path d="M10 12h10c4.418 0 8 3.582 8 8v0c0 4.418-3.582 8-8 8H10V12z" stroke="white" strokeWidth="3" fill="none"/>
-    <path d="M10 28h0" stroke="white" strokeWidth="3" strokeLinecap="round"/>
-  </svg>
+  <img src={gammaLogo} alt="Gamma" className={className} />
 );
 
 export const NapkinLogo: React.FC<{ className?: string }> = ({ className }) => (
-  <svg viewBox="0 0 40 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="40" height="40" rx="8" fill="#6366F1"/>
-    <path d="M12 14L20 26L28 14" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <circle cx="20" cy="20" r="2" fill="white"/>
-  </svg>
+  <img src={napkinLogo} alt="Napkin AI" className={className} />
 );
 
 export const IntegrationLogo: React.FC<{ 
