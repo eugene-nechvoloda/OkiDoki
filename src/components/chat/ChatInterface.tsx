@@ -11,8 +11,8 @@ import okidokiLogo from "@/assets/logos/okidoki-logo.png";
 
 interface ChatInterfaceProps {
   messages: Message[];
-  selectedTemplate?: PRDTemplate;
-  onSelectTemplate: (template: PRDTemplate) => void;
+  selectedTemplate?: PRDTemplate | null;
+  onSelectTemplate: (template: PRDTemplate | null) => void;
   onSendMessage: (message: string, settings: ChatSettings) => void;
   isLoading: boolean;
   streamingContent?: string;

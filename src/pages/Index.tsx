@@ -40,23 +40,23 @@ const Index = () => {
     const state = location.state as { chatId?: string; selectedTemplate?: typeof selectedTemplate } | null;
     const chatId = state?.chatId;
     const template = state?.selectedTemplate;
-    
+
     if (chatId) {
       selectChat(chatId);
     }
-    
+
     if (template) {
       // Ensure template has the correct PRDTemplate shape
       const prdTemplate = {
         id: template.id,
         name: template.name,
         description: template.description || "",
-        sections: template.sections || [],
-        isBuiltIn: template.isBuiltIn ?? true,
+        sections: Array.isArray(template.sections) ? template.sections : [],
+        isBuiltIn: !!template.isBuiltIn,
       };
       setSelectedTemplate(prdTemplate);
     }
-    
+
     // Clear the navigation state so refresh/back doesn't re-trigger.
     if (chatId || template) {
       navigate("/", { replace: true, state: null });
