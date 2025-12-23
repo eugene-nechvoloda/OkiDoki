@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -69,7 +69,7 @@ export default function Projects() {
   const { user } = useAuth();
   const { chats, currentChat, createNewChat, selectChat } = useChat();
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -457,25 +457,13 @@ export default function Projects() {
   };
 
   return (
-    <div className="h-screen flex bg-background overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar
-        chats={chats}
-        currentChatId={currentChat?.id}
-        onNewChat={createNewChat}
-        onSelectChat={selectChat}
-        onNavigate={(view) => {
-          if (view === "chats") navigate("/");
-          if (view === "projects") navigate("/projects");
-          if (view === "templates") navigate("/templates");
-          if (view === "integrations") navigate("/integrations");
-        }}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-0">
+    <MainLayout
+      chats={chats}
+      currentChatId={currentChat?.id}
+      onNewChat={createNewChat}
+      onSelectChat={selectChat}
+    >
+      <div className="h-full flex flex-col min-h-0">
         {selectedDoc ? (
           // Document Editor View
           <div className="flex-1 flex flex-col min-h-0">
@@ -893,6 +881,6 @@ export default function Projects() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </MainLayout>
   );
 }

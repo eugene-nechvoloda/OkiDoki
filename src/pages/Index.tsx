@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { PRDPreview } from "@/components/prd/PRDPreview";
 import { useChat } from "@/hooks/useChat";
@@ -13,7 +13,6 @@ import { PanelRightClose } from "lucide-react";
 const Index = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [previewClosed, setPreviewClosed] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -88,20 +87,13 @@ const Index = () => {
   };
 
   return (
-    <div className="h-screen flex bg-background overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar
-        chats={chats}
-        currentChatId={currentChat?.id}
-        onNewChat={createNewChat}
-        onSelectChat={selectChat}
-        onNavigate={(view) => console.log("Navigate to:", view)}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
-
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden relative">
+    <MainLayout
+      chats={chats}
+      currentChatId={currentChat?.id}
+      onNewChat={createNewChat}
+      onSelectChat={selectChat}
+    >
+      <div className="h-full flex overflow-hidden relative">
         {/* Chat */}
         <div className="flex-1">
           <ChatInterface
@@ -147,7 +139,7 @@ const Index = () => {
           </>
         )}
       </div>
-    </div>
+    </MainLayout>
   );
 };
 
