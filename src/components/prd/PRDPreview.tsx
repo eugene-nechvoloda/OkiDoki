@@ -120,7 +120,13 @@ export function PRDPreview({
 
   const currentContent = versions[currentVersionIndex]?.content || content;
 
-  const handleCopy = async () => {
+  const displayedContent =
+    regeneratedText && selectionRange
+      ? currentContent.slice(0, selectionRange.start) +
+        regeneratedText +
+        currentContent.slice(selectionRange.end)
+      : currentContent;
+
     await navigator.clipboard.writeText(currentContent);
     setCopied(true);
     toast.success("Raw markdown copied to clipboard");
