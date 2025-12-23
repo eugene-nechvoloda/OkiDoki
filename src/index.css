@@ -178,12 +178,10 @@
   /* Text selection highlighting */
   .text-selectable::selection {
     background-color: hsl(var(--primary) / 0.25);
-    color: inherit;
   }
 
   .text-selectable::-moz-selection {
     background-color: hsl(var(--primary) / 0.25);
-    color: inherit;
   }
 
   /* Persistent highlight for toolbar active state - stronger highlight */
