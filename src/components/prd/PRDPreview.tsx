@@ -83,6 +83,8 @@ export function PRDPreview({
   const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regeneratedText, setRegeneratedText] = useState<string | null>(null);
+  // Track if we're in "review mode" - showing AI suggestion
+  const [isReviewMode, setIsReviewMode] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [selectedProjectForSave, setSelectedProjectForSave] = useState<string | undefined>();
@@ -120,17 +122,12 @@ export function PRDPreview({
 
   const currentContent = versions[currentVersionIndex]?.content || content;
 
-  // When we have regenerated text, we show it in-place with special markers
-  // that we'll use to highlight the changed portion
-  const MARKER_START = "⟦IMPROVED_START⟧";
-  const MARKER_END = "⟦IMPROVED_END⟧";
-  
-  const displayedContent =
-    regeneratedText && selectionRange
+  // For review mode, we show the content with regenerated text substituted
+  // The highlighting is done via the Confirm/Decline toolbar UI
+  const displayedContent = 
+    isReviewMode && regeneratedText && selectionRange
       ? currentContent.slice(0, selectionRange.start) +
-        MARKER_START +
         regeneratedText +
-        MARKER_END +
         currentContent.slice(selectionRange.end)
       : currentContent;
 
@@ -337,6 +334,8 @@ export function PRDPreview({
   const handleImprove = async (prompt: string) => {
     setIsRegenerating(true);
     setRegeneratedText(null);
+    // Clear the browser selection but keep our state for positioning
+    window.getSelection()?.removeAllRanges();
 
     try {
       let fullResponse = "";
@@ -351,10 +350,12 @@ export function PRDPreview({
       );
 
       setRegeneratedText(fullResponse.trim());
+      setIsReviewMode(true);
     } catch (error) {
       console.error("Failed to improve text:", error);
       toast.error("Failed to improve text");
       setRegeneratedText(null);
+      setIsReviewMode(false);
     } finally {
       setIsRegenerating(false);
     }
@@ -373,13 +374,13 @@ export function PRDPreview({
     setVersions(prev => [...prev.slice(0, currentVersionIndex + 1), newVersion]);
     setCurrentVersionIndex(prev => prev + 1);
 
-    // Clear selection state
+    // Clear all selection state
     setSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
     setRegeneratedText(null);
+    setIsReviewMode(false);
     toast.success("Changes applied");
-    window.getSelection()?.removeAllRanges();
   };
 
   // Reject improved text - also clears selection state
@@ -388,7 +389,7 @@ export function PRDPreview({
     setSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
-    window.getSelection()?.removeAllRanges();
+    setIsReviewMode(false);
   };
 
   // Rollback to previous version
@@ -699,35 +700,60 @@ export function PRDPreview({
         />
       )}
       
-      {/* Floating Confirm/Decline buttons when reviewing improved text */}
-      {regeneratedText && selectionPosition && (
+      {/* Floating Confirm/Decline panel when reviewing improved text */}
+      {isReviewMode && regeneratedText && selectionPosition && (
         <div
           data-toolbar
           className="fixed z-[1000] animate-in fade-in-0 zoom-in-95 duration-150"
           style={{
-            left: Math.max(16, Math.min(selectionPosition.x - 100, window.innerWidth - 216)),
+            left: Math.max(16, Math.min(selectionPosition.x - 200, window.innerWidth - 416)),
             top: Math.max(16, selectionPosition.y),
+            width: 400,
           }}
         >
-          <div className="bg-card border border-border rounded-xl shadow-2xl p-3 flex items-center gap-2">
-            <span className="text-sm text-muted-foreground mr-1">Apply change?</span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleRejectImproved}
-              className="h-8 px-3 gap-1.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
-            >
-              <X className="h-3.5 w-3.5" />
-              Decline
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleAcceptImproved}
-              className="h-8 px-3 gap-1.5 gradient-brand text-primary-foreground"
-            >
-              <Check className="h-3.5 w-3.5" />
-              Confirm
-            </Button>
+          <div className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="px-4 py-2.5 bg-primary/5 border-b border-border flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span className="text-sm font-medium">AI Suggestion</span>
+            </div>
+            
+            {/* Comparison */}
+            <div className="p-3 space-y-2 max-h-48 overflow-y-auto">
+              <div>
+                <span className="text-xs text-muted-foreground uppercase tracking-wide">Original</span>
+                <div className="mt-1 p-2 bg-muted/50 rounded text-sm line-through opacity-60 max-h-16 overflow-y-auto">
+                  {selectedText.length > 150 ? selectedText.slice(0, 150) + "..." : selectedText}
+                </div>
+              </div>
+              <div>
+                <span className="text-xs text-primary uppercase tracking-wide font-medium">Improved</span>
+                <div className="mt-1 p-2 bg-primary/10 border border-primary/20 rounded text-sm max-h-16 overflow-y-auto">
+                  {regeneratedText.length > 150 ? regeneratedText.slice(0, 150) + "..." : regeneratedText}
+                </div>
+              </div>
+            </div>
+            
+            {/* Actions */}
+            <div className="px-4 py-3 bg-muted/30 border-t border-border flex items-center justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleRejectImproved}
+                className="h-8 px-3 gap-1.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+              >
+                <X className="h-3.5 w-3.5" />
+                Decline
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleAcceptImproved}
+                className="h-8 px-3 gap-1.5 gradient-brand text-primary-foreground"
+              >
+                <Check className="h-3.5 w-3.5" />
+                Confirm
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -739,55 +765,25 @@ export function PRDPreview({
             ref={contentRef}
             className={cn(
               "px-6 py-6 max-w-4xl mx-auto select-text cursor-text text-selectable",
-              selectedText && "has-active-selection"
+              (selectedText || isReviewMode) && "has-active-selection",
+              isReviewMode && "ring-2 ring-primary/20 rounded-lg"
             )}
           >
-            {regeneratedText ? (
-              // When showing improved text, render with highlighting
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  ...components,
-                  // Override text rendering to handle our markers
-                  p: ({ children, ...props }) => {
-                    const processChildren = (child: React.ReactNode): React.ReactNode => {
-                      if (typeof child === 'string') {
-                        if (child.includes(MARKER_START) || child.includes(MARKER_END)) {
-                          const parts = child.split(new RegExp(`(${MARKER_START}|${MARKER_END})`));
-                          let insideMarker = false;
-                          return parts.map((part, i) => {
-                            if (part === MARKER_START) {
-                              insideMarker = true;
-                              return null;
-                            }
-                            if (part === MARKER_END) {
-                              insideMarker = false;
-                              return null;
-                            }
-                            if (insideMarker) {
-                              return (
-                                <mark key={i} className="bg-primary/20 text-foreground px-0.5 rounded-sm ring-2 ring-primary/40">
-                                  {part}
-                                </mark>
-                              );
-                            }
-                            return part;
-                          });
-                        }
-                      }
-                      return child;
-                    };
-                    
-                    const processed = Array.isArray(children) 
-                      ? children.map(processChildren)
-                      : processChildren(children);
-                    
-                    return <p className="mb-4 text-foreground/90 leading-relaxed" {...props}>{processed}</p>;
-                  },
-                }}
-              >
-                {displayedContent}
-              </ReactMarkdown>
+            {isReviewMode && regeneratedText ? (
+              // In review mode: show content with the improved text in place
+              // The Confirm/Decline toolbar provides context about what changed
+              <div className="relative">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={components}
+                >
+                  {displayedContent}
+                </ReactMarkdown>
+                {/* Visual indicator that content is being previewed */}
+                <div className="absolute top-0 right-0 bg-primary/10 text-primary text-xs px-2 py-1 rounded-bl-lg border-l border-b border-primary/20">
+                  Preview
+                </div>
+              </div>
             ) : (
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
