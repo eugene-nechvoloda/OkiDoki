@@ -262,7 +262,7 @@ export default function Integrations() {
                         Loading integrations...
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
                         {exportIntegrations.map(({ provider, config }) => {
                           const integration = getIntegrationByProvider(provider);
                           const isConnected = !!integration;
