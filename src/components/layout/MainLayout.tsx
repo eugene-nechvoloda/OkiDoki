@@ -52,6 +52,21 @@ export function MainLayout({
     else if (tab === "integrations") navigate("/integrations");
   };
 
+  // Wrap callbacks to navigate to chats tab when interacting with chat sidebar
+  const handleNewChat = () => {
+    if (activeTab !== "chats") {
+      navigate("/");
+    }
+    onNewChat();
+  };
+
+  const handleSelectChat = (chatId: string) => {
+    if (activeTab !== "chats") {
+      navigate("/");
+    }
+    onSelectChat(chatId);
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Top Navigation Bar with Tabs */}
@@ -88,8 +103,8 @@ export function MainLayout({
         <ChatSidebar
           chats={chats}
           currentChatId={currentChatId}
-          onNewChat={onNewChat}
-          onSelectChat={onSelectChat}
+          onNewChat={handleNewChat}
+          onSelectChat={handleSelectChat}
           isCollapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
