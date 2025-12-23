@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,6 +66,8 @@ const HIERARCHY_LEVELS = [
 
 export function ChatInput({
   onSend,
+  selectedTemplate,
+  onSelectTemplate,
   isLoading,
   placeholder = "Describe your product idea...",
 }: ChatInputProps) {
@@ -85,6 +87,13 @@ export function ChatInput({
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [uploadSubmenu, setUploadSubmenu] = useState(false);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
+
+  // Sync external template prop with local state
+  useEffect(() => {
+    if (selectedTemplate?.id) {
+      setSelectedTemplateId(selectedTemplate.id);
+    }
+  }, [selectedTemplate]);
 
   const handleSubmit = () => {
     if (input.trim() && !isLoading) {
