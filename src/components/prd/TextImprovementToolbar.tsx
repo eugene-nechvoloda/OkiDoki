@@ -88,7 +88,7 @@ export function TextImprovementToolbar({
     width: toolbarWidth,
   };
 
-  // Show result comparison view with Accept/Revert
+  // Show result comparison view with Accept/Reject inline
   if (improvedText) {
     return (
       <div
@@ -98,46 +98,58 @@ export function TextImprovementToolbar({
         className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150"
       >
         {/* Header */}
-        <div className="px-4 py-2.5 bg-primary/5 border-b border-border flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">AI Suggestion</span>
+        <div className="px-4 py-2.5 bg-primary/5 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">AI Suggestion</span>
+          </div>
+          <span className="text-xs text-muted-foreground">Review the changes below</span>
         </div>
 
         {/* Content comparison */}
         <div className="p-4 space-y-3">
           <div className="space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Original</span>
-            <div className="p-3 bg-muted/50 rounded-lg text-sm max-h-28 overflow-y-auto leading-relaxed">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-muted-foreground/50" />
+              Original
+            </span>
+            <div className="p-3 bg-muted/50 rounded-lg text-sm max-h-24 overflow-y-auto leading-relaxed line-through opacity-60">
               {selectedText}
             </div>
           </div>
           <div className="space-y-1.5">
-            <span className="text-xs font-medium text-primary uppercase tracking-wide">Improved</span>
-            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg text-sm max-h-28 overflow-y-auto leading-relaxed">
+            <span className="text-xs font-medium text-primary uppercase tracking-wide flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-primary" />
+              Improved
+            </span>
+            <div className="p-3 bg-primary/10 border-2 border-primary/30 rounded-lg text-sm max-h-24 overflow-y-auto leading-relaxed font-medium">
               {improvedText}
             </div>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="px-4 py-3 bg-muted/30 border-t border-border flex justify-end gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onReject}
-            className="h-8 gap-1.5"
-          >
-            <X className="h-3.5 w-3.5" />
-            Revert
-          </Button>
-          <Button
-            size="sm"
-            onClick={onAccept}
-            className="h-8 gap-1.5 gradient-brand text-primary-foreground"
-          >
-            <Check className="h-3.5 w-3.5" />
-            Accept
-          </Button>
+        {/* Actions - prominent buttons */}
+        <div className="px-4 py-3 bg-muted/30 border-t border-border flex items-center justify-between gap-3">
+          <span className="text-xs text-muted-foreground">Apply this change?</span>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onReject}
+              className="h-9 px-4 gap-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+            >
+              <X className="h-4 w-4" />
+              Decline
+            </Button>
+            <Button
+              size="sm"
+              onClick={onAccept}
+              className="h-9 px-4 gap-2 gradient-brand text-primary-foreground"
+            >
+              <Check className="h-4 w-4" />
+              Accept
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -160,7 +172,7 @@ export function TextImprovementToolbar({
     );
   }
 
-  // Main toolbar with input + quick actions (Notion-like)
+  // Main toolbar with input + quick actions
   return (
     <div
       ref={toolbarRef}
@@ -168,7 +180,7 @@ export function TextImprovementToolbar({
       style={toolbarStyle}
       className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150"
     >
-      {/* Custom prompt input - always visible */}
+      {/* Custom prompt input */}
       <div className="p-3 border-b border-border">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-primary shrink-0" />

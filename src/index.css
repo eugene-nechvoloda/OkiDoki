@@ -177,17 +177,27 @@
 
   /* Text selection highlighting */
   .text-selectable::selection {
-    background-color: hsl(var(--primary) / 0.3);
+    background-color: hsl(var(--primary) / 0.25);
     color: inherit;
   }
 
   .text-selectable::-moz-selection {
-    background-color: hsl(var(--primary) / 0.3);
+    background-color: hsl(var(--primary) / 0.25);
     color: inherit;
   }
 
-  /* Persistent highlight for toolbar active state */
+  /* Persistent highlight for toolbar active state - stronger highlight */
   .has-active-selection::selection {
-    background-color: hsl(var(--primary) / 0.4);
+    background-color: hsl(var(--primary) / 0.35);
+  }
+
+  .has-active-selection::-moz-selection {
+    background-color: hsl(var(--primary) / 0.35);
+  }
+
+  /* Ensure text stays visible when selected */
+  .text-selectable {
+    -webkit-user-select: text;
+    user-select: text;
   }
 }
