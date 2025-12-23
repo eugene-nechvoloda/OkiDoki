@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -44,7 +44,7 @@ export default function Integrations() {
   const { user } = useAuth();
   const { chats, currentChat, createNewChat, selectChat } = useChat();
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
   const [activeTab, setActiveTab] = useState("knowledge");
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,26 +118,13 @@ export default function Integrations() {
   ];
 
   return (
-    <div className="h-screen flex bg-background overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar
-        chats={chats}
-        currentChatId={currentChat?.id}
-        onNewChat={createNewChat}
-        onSelectChat={selectChat}
-        onNavigate={(view) => {
-          if (view === "chats") navigate("/");
-          if (view === "projects") navigate("/projects");
-          if (view === "templates") navigate("/templates");
-          if (view === "documents") navigate("/documents");
-          if (view === "integrations") navigate("/integrations");
-        }}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <MainLayout
+      chats={chats}
+      currentChatId={currentChat?.id}
+      onNewChat={createNewChat}
+      onSelectChat={selectChat}
+    >
+      <div className="h-full flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3 mb-1">
@@ -517,15 +504,15 @@ export default function Integrations() {
             </ScrollArea>
           </Tabs>
         </div>
-      </div>
 
-      {/* Integration Setup Dialog */}
-      <IntegrationSetupDialog
-        provider={setupProvider}
-        open={showSetupDialog}
-        onOpenChange={setShowSetupDialog}
-        onSuccess={loadIntegrations}
-      />
-    </div>
+        {/* Integration Setup Dialog */}
+        <IntegrationSetupDialog
+          provider={setupProvider}
+          open={showSetupDialog}
+          onOpenChange={setShowSetupDialog}
+          onSuccess={loadIntegrations}
+        />
+      </div>
+    </MainLayout>
   );
 }
