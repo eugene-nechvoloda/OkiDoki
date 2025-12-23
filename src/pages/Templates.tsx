@@ -46,6 +46,9 @@ import {
   MessageSquareText,
   Code,
   TrendingUp,
+  Zap,
+  Puzzle,
+  Cpu,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -63,6 +66,9 @@ const TEMPLATE_ICONS: Record<string, LucideIcon> = {
   MessageSquareText,
   Code,
   TrendingUp,
+  Zap,
+  Puzzle,
+  Cpu,
   LayoutTemplate, // default fallback
 };
 
