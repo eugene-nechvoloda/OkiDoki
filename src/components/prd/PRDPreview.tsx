@@ -127,6 +127,7 @@ export function PRDPreview({
         currentContent.slice(selectionRange.end)
       : currentContent;
 
+  const handleCopy = async () => {
     await navigator.clipboard.writeText(currentContent);
     setCopied(true);
     toast.success("Raw markdown copied to clipboard");
@@ -691,7 +692,7 @@ export function PRDPreview({
 
       {/* Content */}
       <ScrollArea className="flex-1" onPointerDownCapture={handlePointerDownOutside}>
-        {currentContent ? (
+        {displayedContent ? (
           <article
             ref={contentRef}
             className={cn(
@@ -703,7 +704,7 @@ export function PRDPreview({
               remarkPlugins={[remarkGfm]}
               components={components}
             >
-              {currentContent}
+              {displayedContent}
             </ReactMarkdown>
           </article>
         ) : (
