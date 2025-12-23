@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ChatSidebar } from "@/components/layout/ChatSidebar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FolderKanban, LayoutTemplate, Plug, MessageSquare } from "lucide-react";
+import okidokiLogo from "@/assets/logos/okidoki-logo.png";
 import { cn } from "@/lib/utils";
 import type { Chat } from "@/types";
 
@@ -74,10 +75,8 @@ export function MainLayout({
       {/* Top Navigation Bar with Tabs */}
       <header className="h-14 border-b border-border bg-card flex items-center justify-center px-4 shrink-0">
         <div className="absolute left-4 flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg gradient-brand flex items-center justify-center">
-            <span className="text-sm font-bold text-primary-foreground">O</span>
-          </div>
-          <span className="font-semibold text-foreground">Outline</span>
+          <img src={okidokiLogo} alt="OkiDoki" className="w-8 h-8 rounded-lg" />
+          <span className="font-semibold text-foreground">OkiDoki</span>
         </div>
 
         <Tabs value={activeTab} onValueChange={handleTabChange}>
