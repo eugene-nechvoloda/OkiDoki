@@ -21,6 +21,7 @@ export interface PRDTemplate {
   description: string;
   sections: string[];
   isBuiltIn: boolean;
+  icon?: string;
 }
 
 export interface Project {

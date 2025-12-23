@@ -5,6 +5,7 @@ export const BUILT_IN_TEMPLATES: PRDTemplate[] = [
     id: "standard-prd",
     name: "Standard PRD",
     description: "Comprehensive product requirements document with all essential sections",
+    icon: "FileText",
     sections: [
       "Executive Summary",
       "Problem Statement",
@@ -24,6 +25,7 @@ export const BUILT_IN_TEMPLATES: PRDTemplate[] = [
     id: "discovery-brief",
     name: "Discovery Brief",
     description: "Lightweight template for early-stage product discovery",
+    icon: "Search",
     sections: [
       "Context",
       "Hypotheses",
@@ -38,6 +40,7 @@ export const BUILT_IN_TEMPLATES: PRDTemplate[] = [
     id: "experiment-prd",
     name: "Experiment PRD",
     description: "Template for A/B tests and controlled experiments",
+    icon: "FlaskConical",
     sections: [
       "Hypothesis",
       "Experiment Design",
@@ -53,6 +56,7 @@ export const BUILT_IN_TEMPLATES: PRDTemplate[] = [
     id: "rfc",
     name: "RFC (Request for Comments)",
     description: "Lightweight decision document for technical or process changes",
+    icon: "MessageSquareText",
     sections: [
       "Proposal",
       "Rationale",
@@ -67,6 +71,7 @@ export const BUILT_IN_TEMPLATES: PRDTemplate[] = [
     id: "api-documentation",
     name: "API Documentation",
     description: "Comprehensive guide for documenting APIs",
+    icon: "Code",
     sections: [
       "Overview",
       "Authentication",
@@ -81,6 +86,7 @@ export const BUILT_IN_TEMPLATES: PRDTemplate[] = [
     id: "competitive-analysis",
     name: "Competitive Analysis Report",
     description: "Framework for analyzing competitors and market positioning",
+    icon: "TrendingUp",
     sections: [
       "Executive Summary",
       "Competitors Overview",

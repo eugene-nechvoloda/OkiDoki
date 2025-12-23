@@ -42,6 +42,11 @@ import {
   Trash2,
   MoreHorizontal,
   X,
+  FlaskConical,
+  MessageSquareText,
+  Code,
+  TrendingUp,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getTemplates, createTemplate, updateTemplate, deleteTemplate } from "@/services/api";
@@ -49,6 +54,22 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useChat } from "@/hooks/useChat";
 import type { Template } from "@/types/database";
 import { toast } from "sonner";
+
+// Icon mapping for templates
+const TEMPLATE_ICONS: Record<string, LucideIcon> = {
+  FileText,
+  Search,
+  FlaskConical,
+  MessageSquareText,
+  Code,
+  TrendingUp,
+  LayoutTemplate, // default fallback
+};
+
+const getTemplateIcon = (iconName?: string): LucideIcon => {
+  if (!iconName) return LayoutTemplate;
+  return TEMPLATE_ICONS[iconName] || LayoutTemplate;
+};
 
 export default function Templates() {
   const navigate = useNavigate();
@@ -247,6 +268,10 @@ export default function Templates() {
       ? template.sections
       : [];
     const isExpanded = selectedTemplateId === template.id;
+    
+    // Get icon - check if template has icon field (from built-in) or use default
+    const iconName = (template as any).icon as string | undefined;
+    const IconComponent = getTemplateIcon(iconName);
 
     return (
       <div
@@ -258,7 +283,7 @@ export default function Templates() {
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <LayoutTemplate className="h-5 w-5 text-primary" />
+              <IconComponent className="h-5 w-5 text-primary" />
             </div>
             <div>
               <h3 className="font-semibold text-lg">{template.name}</h3>
