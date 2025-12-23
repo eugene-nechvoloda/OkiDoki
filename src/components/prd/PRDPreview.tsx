@@ -216,9 +216,10 @@ export function PRDPreview({
 
           // Get selection position for floating toolbar
           const rect = range.getBoundingClientRect();
+          // Position toolbar centered below selection, using viewport coordinates
           setSelectionPosition({
             x: rect.left + rect.width / 2,
-            y: rect.bottom + 8,
+            y: rect.bottom + 12,
           });
 
           // Get selection position in content for replacement
@@ -256,9 +257,10 @@ export function PRDPreview({
             setSelectedText(selected);
 
             const rect = range.getBoundingClientRect();
+            // Position toolbar centered below selection
             setSelectionPosition({
               x: rect.left + rect.width / 2,
-              y: rect.bottom + 8,
+              y: rect.bottom + 12,
             });
 
             const preSelectionRange = range.cloneRange();
