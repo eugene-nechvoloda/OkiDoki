@@ -52,56 +52,47 @@ export function MainLayout({
     else if (tab === "integrations") navigate("/integrations");
   };
 
-  // Only show sidebar when on chats tab
-  const showSidebar = activeTab === "chats";
-
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Top Navigation Bar with Tabs */}
-      <header className="h-14 border-b border-border bg-card flex items-center px-4 shrink-0">
-        <div className="w-[140px] flex items-center gap-2">
+      <header className="h-14 border-b border-border bg-card flex items-center justify-center px-4 shrink-0">
+        <div className="absolute left-4 flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg gradient-brand flex items-center justify-center">
             <span className="text-sm font-bold text-primary-foreground">O</span>
           </div>
           <span className="font-semibold text-foreground">Outline</span>
         </div>
 
-        <div className="flex-1 flex justify-center">
-          <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <TabsList className="bg-muted/50">
-              {TABS.map((tab) => (
-                <TabsTrigger
-                  key={tab.id}
-                  value={tab.id}
-                  className={cn(
-                    "gap-2 data-[state=active]:bg-background",
-                    activeTab === tab.id && "text-foreground"
-                  )}
-                >
-                  <tab.icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </div>
-
-        <div className="w-[140px]" /> {/* Spacer for balance - matches logo width */}
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
+          <TabsList className="bg-muted/50">
+            {TABS.map((tab) => (
+              <TabsTrigger
+                key={tab.id}
+                value={tab.id}
+                className={cn(
+                  "gap-2 data-[state=active]:bg-background",
+                  activeTab === tab.id && "text-foreground"
+                )}
+              >
+                <tab.icon className="h-4 w-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </header>
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Chat Sidebar - only visible on chats tab */}
-        {showSidebar && (
-          <ChatSidebar
-            chats={chats}
-            currentChatId={currentChatId}
-            onNewChat={onNewChat}
-            onSelectChat={onSelectChat}
-            isCollapsed={sidebarCollapsed}
-            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          />
-        )}
+        {/* Chat Sidebar - always visible */}
+        <ChatSidebar
+          chats={chats}
+          currentChatId={currentChatId}
+          onNewChat={onNewChat}
+          onSelectChat={onSelectChat}
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
 
         {/* Page Content */}
         <main className="flex-1 overflow-hidden">
