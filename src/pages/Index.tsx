@@ -37,14 +37,23 @@ const Index = () => {
 
   // If we navigated here by selecting a chat from another page, open it automatically.
   useEffect(() => {
-    const state = location.state as { chatId?: string } | null;
+    const state = location.state as { chatId?: string; selectedTemplate?: typeof selectedTemplate } | null;
     const chatId = state?.chatId;
-    if (!chatId) return;
-
-    selectChat(chatId);
+    const template = state?.selectedTemplate;
+    
+    if (chatId) {
+      selectChat(chatId);
+    }
+    
+    if (template) {
+      setSelectedTemplate(template);
+    }
+    
     // Clear the navigation state so refresh/back doesn't re-trigger.
-    navigate("/", { replace: true, state: null });
-  }, [location.state, navigate, selectChat]);
+    if (chatId || template) {
+      navigate("/", { replace: true, state: null });
+    }
+  }, [location.state, navigate, selectChat, setSelectedTemplate]);
 
   async function loadProjects() {
     try {
