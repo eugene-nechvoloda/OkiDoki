@@ -220,20 +220,21 @@ export default function Templates() {
       ? template.sections
       : [];
 
-    setSelectedTemplate({
+    const templateData = {
       id: template.id,
       name: template.name,
       description: template.description || "",
       sections: sections as string[],
       isBuiltIn: !template.is_custom,
-    });
+    };
 
+    // Create a new chat and navigate with template in state
+    createNewChat();
+    
     toast.success(`Using template: ${template.name}`);
 
-    // Navigate back to chat to start creating PRD with this template
-    setTimeout(() => {
-      navigate("/");
-    }, 500);
+    // Navigate to chat with template data in state
+    navigate("/", { state: { selectedTemplate: templateData } });
   };
 
   // Handle viewing template details
