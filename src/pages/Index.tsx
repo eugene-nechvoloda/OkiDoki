@@ -46,7 +46,15 @@ const Index = () => {
     }
     
     if (template) {
-      setSelectedTemplate(template);
+      // Ensure template has the correct PRDTemplate shape
+      const prdTemplate = {
+        id: template.id,
+        name: template.name,
+        description: template.description || "",
+        sections: template.sections || [],
+        isBuiltIn: template.isBuiltIn ?? true,
+      };
+      setSelectedTemplate(prdTemplate);
     }
     
     // Clear the navigation state so refresh/back doesn't re-trigger.
