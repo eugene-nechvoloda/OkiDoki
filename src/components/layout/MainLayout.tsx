@@ -62,9 +62,11 @@ export function MainLayout({
 
   const handleSelectChat = (chatId: string) => {
     if (activeTab !== "chats") {
-      navigate("/");
+      // Pass chatId in navigation state so Index.tsx can select it immediately
+      navigate("/", { state: { chatId } });
+    } else {
+      onSelectChat(chatId);
     }
-    onSelectChat(chatId);
   };
 
   return (
