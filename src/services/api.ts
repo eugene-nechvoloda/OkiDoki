@@ -12,6 +12,7 @@ import type {
   Integration,
 } from '@/types/database';
 import { getGuestId, readGuestJson, writeGuestJson } from "@/services/guestStorage";
+import { BUILT_IN_TEMPLATES } from "@/data/templates";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -584,6 +585,19 @@ export async function getTemplates(params?: {
       throw error;
     }
 
+    // Helper to enrich templates with icons from BUILT_IN_TEMPLATES
+    const enrichWithIcons = (templates: Template[]): Template[] => {
+      return templates.map(t => {
+        if (!t.is_custom) {
+          const builtIn = BUILT_IN_TEMPLATES.find(b => b.id === t.id || b.name === t.name);
+          if (builtIn?.icon) {
+            return { ...t, icon: builtIn.icon } as Template & { icon: string };
+          }
+        }
+        return t;
+      });
+    };
+
     // Guest mode: only show built-ins from backend + this browser's custom templates
     if (!authed) {
       const builtIns = (data || []).filter((t) => !t.is_custom);
@@ -591,12 +605,12 @@ export async function getTemplates(params?: {
         (t) => t.user_id === userId
       );
 
-      const merged = [...builtIns, ...localCustoms];
+      const merged = enrichWithIcons([...builtIns, ...localCustoms]);
       return { templates: merged.slice(0, params?.limit || 100) };
     }
 
     console.log('✅ Templates fetched successfully:', data?.length || 0);
-    return { templates: data || [] };
+    return { templates: enrichWithIcons(data || []) };
   } catch (err) {
     console.error('❌ Failed to fetch templates:', err);
     throw new Error(err instanceof Error ? err.message : 'Failed to fetch templates');
