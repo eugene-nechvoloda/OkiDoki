@@ -150,9 +150,27 @@ export function ChatInput({
         accept=".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.webp"
       />
       
-      {/* Uploaded files display */}
-      {uploadedFiles.length > 0 && (
+      {/* Selected template badge and uploaded files */}
+      {(currentTemplate || uploadedFiles.length > 0) && (
         <div className="px-4 pt-3 pb-1 flex flex-wrap gap-2">
+          {/* Template badge */}
+          {currentTemplate && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-sm">
+              <LayoutTemplate className="h-3.5 w-3.5 text-primary" />
+              <span className="text-primary font-medium">{currentTemplate.name}</span>
+              <button
+                onClick={() => {
+                  setSelectedTemplateId(null);
+                  onSelectTemplate(BUILT_IN_TEMPLATES[0]);
+                }}
+                className="h-4 w-4 rounded-full hover:bg-primary/20 flex items-center justify-center"
+              >
+                <X className="h-3 w-3 text-primary" />
+              </button>
+            </div>
+          )}
+          
+          {/* Uploaded files */}
           {uploadedFiles.map((file, index) => (
             <div
               key={index}
