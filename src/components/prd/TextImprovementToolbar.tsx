@@ -59,6 +59,9 @@ export function TextImprovementToolbar({
   }, [position, isProcessing, improvedText]);
 
   if (!position || !selectedText) return null;
+  
+  // Don't render anything when we have improved text - parent handles the confirm/decline UI
+  if (improvedText) return null;
 
   const handleQuickAction = (prompt: string) => {
     onImprove(`${prompt}\n\n${selectedText}`);
@@ -71,7 +74,7 @@ export function TextImprovementToolbar({
   };
 
   // Calculate position to keep toolbar in viewport
-  const toolbarWidth = improvedText ? 420 : 380;
+  const toolbarWidth = 380;
   const padding = 16;
   
   // Clamp horizontal position to keep toolbar fully visible
@@ -87,73 +90,6 @@ export function TextImprovementToolbar({
     zIndex: 1000,
     width: toolbarWidth,
   };
-
-  // Show result comparison view with Accept/Reject inline
-  if (improvedText) {
-    return (
-      <div
-        ref={toolbarRef}
-        data-toolbar
-        style={toolbarStyle}
-        className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150"
-      >
-        {/* Header */}
-        <div className="px-4 py-2.5 bg-primary/5 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">AI Suggestion</span>
-          </div>
-          <span className="text-xs text-muted-foreground">Review the changes below</span>
-        </div>
-
-        {/* Content comparison */}
-        <div className="p-4 space-y-3">
-          <div className="space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-muted-foreground/50" />
-              Original
-            </span>
-            <div className="p-3 bg-muted/50 rounded-lg text-sm max-h-24 overflow-y-auto leading-relaxed line-through opacity-60">
-              {selectedText}
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <span className="text-xs font-medium text-primary uppercase tracking-wide flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-primary" />
-              Improved
-            </span>
-            <div className="p-3 bg-primary/10 border-2 border-primary/30 rounded-lg text-sm max-h-24 overflow-y-auto leading-relaxed font-medium">
-              {improvedText}
-            </div>
-          </div>
-        </div>
-
-        {/* Actions - prominent buttons */}
-        <div className="px-4 py-3 bg-muted/30 border-t border-border flex items-center justify-between gap-3">
-          <span className="text-xs text-muted-foreground">Apply this change?</span>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onReject}
-              className="h-9 px-4 gap-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
-            >
-              <X className="h-4 w-4" />
-              Decline
-            </Button>
-            <Button
-              size="sm"
-              onClick={onAccept}
-              className="h-9 px-4 gap-2 gradient-brand text-primary-foreground"
-            >
-              <Check className="h-4 w-4" />
-              Accept
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Show loading state
   if (isProcessing) {

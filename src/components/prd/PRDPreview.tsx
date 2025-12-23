@@ -120,10 +120,17 @@ export function PRDPreview({
 
   const currentContent = versions[currentVersionIndex]?.content || content;
 
+  // When we have regenerated text, we show it in-place with special markers
+  // that we'll use to highlight the changed portion
+  const MARKER_START = "⟦IMPROVED_START⟧";
+  const MARKER_END = "⟦IMPROVED_END⟧";
+  
   const displayedContent =
     regeneratedText && selectionRange
       ? currentContent.slice(0, selectionRange.start) +
+        MARKER_START +
         regeneratedText +
+        MARKER_END +
         currentContent.slice(selectionRange.end)
       : currentContent;
 
@@ -679,16 +686,51 @@ export function PRDPreview({
         </div>
       </div>
 
-      {/* Floating Text Improvement Toolbar */}
-      <TextImprovementToolbar
-        selectedText={selectedText}
-        position={selectionPosition}
-        onImprove={handleImprove}
-        isProcessing={isRegenerating}
-        improvedText={regeneratedText}
-        onAccept={handleAcceptImproved}
-        onReject={handleRejectImproved}
-      />
+      {/* Floating Text Improvement Toolbar - show for selection & loading */}
+      {!regeneratedText && (
+        <TextImprovementToolbar
+          selectedText={selectedText}
+          position={selectionPosition}
+          onImprove={handleImprove}
+          isProcessing={isRegenerating}
+          improvedText={regeneratedText}
+          onAccept={handleAcceptImproved}
+          onReject={handleRejectImproved}
+        />
+      )}
+      
+      {/* Floating Confirm/Decline buttons when reviewing improved text */}
+      {regeneratedText && selectionPosition && (
+        <div
+          data-toolbar
+          className="fixed z-[1000] animate-in fade-in-0 zoom-in-95 duration-150"
+          style={{
+            left: Math.max(16, Math.min(selectionPosition.x - 100, window.innerWidth - 216)),
+            top: Math.max(16, selectionPosition.y),
+          }}
+        >
+          <div className="bg-card border border-border rounded-xl shadow-2xl p-3 flex items-center gap-2">
+            <span className="text-sm text-muted-foreground mr-1">Apply change?</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleRejectImproved}
+              className="h-8 px-3 gap-1.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+            >
+              <X className="h-3.5 w-3.5" />
+              Decline
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleAcceptImproved}
+              className="h-8 px-3 gap-1.5 gradient-brand text-primary-foreground"
+            >
+              <Check className="h-3.5 w-3.5" />
+              Confirm
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <ScrollArea className="flex-1" onPointerDownCapture={handlePointerDownOutside}>
@@ -700,12 +742,60 @@ export function PRDPreview({
               selectedText && "has-active-selection"
             )}
           >
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={components}
-            >
-              {displayedContent}
-            </ReactMarkdown>
+            {regeneratedText ? (
+              // When showing improved text, render with highlighting
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  ...components,
+                  // Override text rendering to handle our markers
+                  p: ({ children, ...props }) => {
+                    const processChildren = (child: React.ReactNode): React.ReactNode => {
+                      if (typeof child === 'string') {
+                        if (child.includes(MARKER_START) || child.includes(MARKER_END)) {
+                          const parts = child.split(new RegExp(`(${MARKER_START}|${MARKER_END})`));
+                          let insideMarker = false;
+                          return parts.map((part, i) => {
+                            if (part === MARKER_START) {
+                              insideMarker = true;
+                              return null;
+                            }
+                            if (part === MARKER_END) {
+                              insideMarker = false;
+                              return null;
+                            }
+                            if (insideMarker) {
+                              return (
+                                <mark key={i} className="bg-primary/20 text-foreground px-0.5 rounded-sm ring-2 ring-primary/40">
+                                  {part}
+                                </mark>
+                              );
+                            }
+                            return part;
+                          });
+                        }
+                      }
+                      return child;
+                    };
+                    
+                    const processed = Array.isArray(children) 
+                      ? children.map(processChildren)
+                      : processChildren(children);
+                    
+                    return <p className="mb-4 text-foreground/90 leading-relaxed" {...props}>{processed}</p>;
+                  },
+                }}
+              >
+                {displayedContent}
+              </ReactMarkdown>
+            ) : (
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={components}
+              >
+                {displayedContent}
+              </ReactMarkdown>
+            )}
           </article>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center py-12">
