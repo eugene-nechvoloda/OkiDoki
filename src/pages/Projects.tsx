@@ -328,25 +328,57 @@ export default function Projects() {
 
   // Use effect to add global pointer listeners for better selection detection
   useEffect(() => {
-    const handleGlobalPointerUp = (e: PointerEvent) => {
-      setTimeout(() => {
-        if (docContentRef.current?.contains(e.target as Node)) {
-          handleTextSelection();
+    const checkSelection = () => {
+      const selection = window.getSelection();
+      const selected = selection?.toString().trim();
+
+      if (selected && selected.length > 3 && docContentRef.current) {
+        try {
+          const range = selection?.getRangeAt(0);
+          if (range && docContentRef.current.contains(range.commonAncestorContainer)) {
+            setSelectedText(selected);
+
+            const rect = range.getBoundingClientRect();
+            setSelectionPosition({
+              x: rect.left + rect.width / 2,
+              y: rect.bottom + 8,
+            });
+
+            const preSelectionRange = range.cloneRange();
+            preSelectionRange.selectNodeContents(docContentRef.current);
+            preSelectionRange.setEnd(range.startContainer, range.startOffset);
+            const start = preSelectionRange.toString().length;
+            const end = start + selected.length;
+            setSelectionRange({ start, end });
+          }
+        } catch (e) {
+          // Selection might be invalid
         }
-      }, 10);
+      }
+    };
+
+    const handleGlobalPointerUp = () => {
+      setTimeout(checkSelection, 20);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === "Shift" || e.key.startsWith("Arrow")) {
-        setTimeout(() => handleTextSelection(), 10);
+        setTimeout(checkSelection, 20);
       }
+    };
+
+    // Also listen to selectionchange for more reliable detection
+    const handleSelectionChange = () => {
+      setTimeout(checkSelection, 50);
     };
 
     document.addEventListener("pointerup", handleGlobalPointerUp, true);
     document.addEventListener("keyup", handleKeyUp, true);
+    document.addEventListener("selectionchange", handleSelectionChange);
     return () => {
       document.removeEventListener("pointerup", handleGlobalPointerUp, true);
       document.removeEventListener("keyup", handleKeyUp, true);
+      document.removeEventListener("selectionchange", handleSelectionChange);
     };
   }, [regeneratedText, selectedDoc]);
 
