@@ -58,8 +58,8 @@ export function MainLayout({
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Top Navigation Bar with Tabs */}
-      <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-4 shrink-0">
-        <div className="flex items-center gap-2">
+      <header className="h-14 border-b border-border bg-card flex items-center px-4 shrink-0">
+        <div className="w-[140px] flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg gradient-brand flex items-center justify-center">
             <span className="text-sm font-bold text-primary-foreground">O</span>
           </div>
@@ -86,7 +86,7 @@ export function MainLayout({
           </Tabs>
         </div>
 
-        <div className="w-[120px]" /> {/* Spacer for balance */}
+        <div className="w-[140px]" /> {/* Spacer for balance - matches logo width */}
       </header>
 
       {/* Main Content Area */}
