@@ -91,15 +91,48 @@ const approxMarkdownToVisibleText = (md: string): string => {
     .replace(/`([^`]+)`/g, "$1");
 };
 
+// Check if a position is inside an unclosed formatting block
+const isInsideFormattingBlock = (
+  markdown: string,
+  position: number
+): { isInside: boolean; marker: string; startPos: number } => {
+  const beforeText = markdown.slice(0, position);
+  
+  // Check for bold markers (**)
+  const boldMatches = beforeText.match(/\*\*/g) || [];
+  if (boldMatches.length % 2 === 1) {
+    // Odd number of ** means we're inside a bold block
+    const lastBoldStart = beforeText.lastIndexOf("**");
+    return { isInside: true, marker: "**", startPos: lastBoldStart };
+  }
+  
+  // Check for italic markers (single *)
+  // Need to be careful not to confuse with bold
+  const cleanedForItalic = beforeText.replace(/\*\*/g, "");
+  const italicMatches = cleanedForItalic.match(/\*/g) || [];
+  if (italicMatches.length % 2 === 1) {
+    const lastItalicStart = beforeText.lastIndexOf("*");
+    // Make sure it's not part of **
+    if (lastItalicStart > 0 && beforeText[lastItalicStart - 1] !== "*") {
+      return { isInside: true, marker: "*", startPos: lastItalicStart };
+    }
+  }
+  
+  return { isInside: false, marker: "", startPos: -1 };
+};
+
 const findBestSelectionMatchIndex = (
   markdown: string,
   selectedText: string,
   selectionVisibleStart: number
-): number => {
-  if (!selectedText) return -1;
+): { index: number; isInsideFormatting: boolean; formatMarker: string; formatStartPos: number } => {
+  if (!selectedText) return { index: -1, isInsideFormatting: false, formatMarker: "", formatStartPos: -1 };
 
   let bestIndex = -1;
   let bestScore = Number.POSITIVE_INFINITY;
+  let bestIsInsideFormatting = false;
+  let bestFormatMarker = "";
+  let bestFormatStartPos = -1;
 
   let fromIndex = 0;
   while (fromIndex <= markdown.length) {
@@ -112,13 +145,25 @@ const findBestSelectionMatchIndex = (
     if (score < bestScore) {
       bestScore = score;
       bestIndex = idx;
+      
+      // Check if the match position is inside a formatting block
+      const formatInfo = isInsideFormattingBlock(markdown, idx);
+      bestIsInsideFormatting = formatInfo.isInside;
+      bestFormatMarker = formatInfo.marker;
+      bestFormatStartPos = formatInfo.startPos;
+      
       if (score === 0) break;
     }
 
     fromIndex = idx + selectedText.length;
   }
 
-  return bestIndex;
+  return { 
+    index: bestIndex, 
+    isInsideFormatting: bestIsInsideFormatting, 
+    formatMarker: bestFormatMarker,
+    formatStartPos: bestFormatStartPos
+  };
 };
 
 type IntegrationProvider = keyof typeof INTEGRATION_CONFIG;
@@ -333,23 +378,64 @@ export function PRDPreview({
 
     // Replace by matching the selected visible text inside the markdown source.
     // (The selection offsets are based on rendered text, not raw markdown.)
-    const matchIndex = findBestSelectionMatchIndex(
+    const match = findBestSelectionMatchIndex(
       currentContent,
       selection.text,
       selection.range.start
     );
 
-    if (matchIndex === -1) {
+    if (match.index === -1) {
       toast.error("Couldn't apply changes: selected text not found in the document.");
       setRegeneratedText(null);
       clearSelection();
       return;
     }
 
-    const newContent =
-      currentContent.slice(0, matchIndex) +
-      cleanedText +
-      currentContent.slice(matchIndex + selection.text.length);
+    let newContent: string;
+    
+    if (match.isInsideFormatting && match.formatMarker) {
+      // The selected text is inside a formatting block (e.g., bold)
+      // We need to close the formatting before the replacement and reopen after
+      // Check if there's content after the selection that's still inside the formatting
+      const afterSelectionPos = match.index + selection.text.length;
+      const afterText = currentContent.slice(afterSelectionPos);
+      const closingMarkerPos = afterText.indexOf(match.formatMarker);
+      
+      if (closingMarkerPos !== -1) {
+        // There's a closing marker - check if there's meaningful text before it
+        const textBeforeClosing = afterText.slice(0, closingMarkerPos).trim();
+        
+        if (textBeforeClosing.length > 0) {
+          // There's text after our selection that should stay formatted
+          // Close format before our text, insert plain text, reopen format for remaining text
+          newContent =
+            currentContent.slice(0, match.index) +
+            match.formatMarker + // Close the formatting
+            cleanedText +
+            match.formatMarker + // Reopen the formatting for text after
+            currentContent.slice(afterSelectionPos);
+        } else {
+          // No meaningful text after - just close formatting before our text
+          newContent =
+            currentContent.slice(0, match.index) +
+            match.formatMarker + // Close the formatting
+            cleanedText +
+            currentContent.slice(afterSelectionPos);
+        }
+      } else {
+        // No closing marker found - just insert the text
+        newContent =
+          currentContent.slice(0, match.index) +
+          cleanedText +
+          currentContent.slice(afterSelectionPos);
+      }
+    } else {
+      // Normal case - text is not inside formatting
+      newContent =
+        currentContent.slice(0, match.index) +
+        cleanedText +
+        currentContent.slice(match.index + selection.text.length);
+    }
 
     const newVersion = { content: newContent, timestamp: Date.now() };
     setVersions(prev => [...prev.slice(0, currentVersionIndex + 1), newVersion]);
