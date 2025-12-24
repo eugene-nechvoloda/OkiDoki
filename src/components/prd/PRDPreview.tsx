@@ -46,7 +46,10 @@ import type { Components } from "react-markdown";
 import { generatePRD, INTEGRATION_CONFIG } from "@/services/api";
 import type { Project, Integration } from "@/types/database";
 import { TextImprovementToolbar } from "./TextImprovementToolbar";
+import { SelectionHighlight } from "./SelectionHighlight";
 import { exportToPDF } from "@/utils/pdfExport";
+import { useTextSelection } from "@/hooks/useTextSelection";
+import { cn } from "@/lib/utils";
 
 type IntegrationProvider = keyof typeof INTEGRATION_CONFIG;
 
@@ -77,12 +80,25 @@ export function PRDPreview({
   const [copied, setCopied] = useState(false);
   const [versions, setVersions] = useState<Version[]>([{ content, timestamp: Date.now() }]);
   const [currentVersionIndex, setCurrentVersionIndex] = useState(0);
-  const [selectedText, setSelectedText] = useState("");
-  const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
-  const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
+  
+  // AI improvement state
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regeneratedText, setRegeneratedText] = useState<string | null>(null);
+  
+  // Refs
   const contentRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  
+  // Use our custom selection hook
+  const {
+    selection,
+    isLocked,
+    lockSelection,
+    clearSelection,
+    hasSelection,
+  } = useTextSelection(contentRef);
+  
+  // Dialog & export state
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [selectedProjectForSave, setSelectedProjectForSave] = useState<string | undefined>();
   const [isExporting, setIsExporting] = useState(false);
@@ -118,6 +134,14 @@ export function PRDPreview({
   }, [content]);
 
   const currentContent = versions[currentVersionIndex]?.content || content;
+
+  // Compute displayed content - show improved text preview when reviewing
+  const displayedContent = 
+    isLocked && regeneratedText && selection.range
+      ? currentContent.slice(0, selection.range.start) +
+        regeneratedText +
+        currentContent.slice(selection.range.end)
+      : currentContent;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(currentContent);
@@ -201,56 +225,9 @@ export function PRDPreview({
     return connectedIntegrations.some(i => i.provider === provider && i.status === 'connected');
   };
 
-  // Handle text selection - show floating toolbar
-  const handleTextSelection = () => {
-    const selection = window.getSelection();
-    const selected = selection?.toString().trim();
-
-    if (selected && selected.length > 10 && contentRef.current) {
-      // Check if selection is within our content
-      const range = selection?.getRangeAt(0);
-      if (range && contentRef.current.contains(range.commonAncestorContainer)) {
-        setSelectedText(selected);
-
-        // Get selection position for floating toolbar
-        const rect = range.getBoundingClientRect();
-        setSelectionPosition({
-          x: rect.left + rect.width / 2,
-          y: rect.bottom + 8,
-        });
-
-        // Get selection position in content for replacement
-        const preSelectionRange = range.cloneRange();
-        preSelectionRange.selectNodeContents(contentRef.current);
-        preSelectionRange.setEnd(range.startContainer, range.startOffset);
-        const start = preSelectionRange.toString().length;
-        const end = start + selected.length;
-        setSelectionRange({ start, end });
-      }
-    } else if (!regeneratedText) {
-      // Only clear if no improved text is showing and selection is outside or empty
-      setSelectedText("");
-      setSelectionRange(null);
-      setSelectionPosition(null);
-    }
-  };
-
-  // Clear selection when clicking outside
-  const handleClickOutside = (e: React.MouseEvent) => {
-    if (!regeneratedText) {
-      const target = e.target as HTMLElement;
-      // Don't clear if clicking on the toolbar itself
-      if (!target.closest('[data-toolbar]')) {
-        setSelectedText("");
-        setSelectionRange(null);
-        setSelectionPosition(null);
-        window.getSelection()?.removeAllRanges();
-      }
-    }
-  };
-
-  // Regenerate selected text with AI - called from floating toolbar
+  // Regenerate selected text with AI
   const handleImprove = async (prompt: string) => {
+    lockSelection(); // Lock selection state
     setIsRegenerating(true);
     setRegeneratedText(null);
 
@@ -271,6 +248,7 @@ export function PRDPreview({
       console.error("Failed to improve text:", error);
       toast.error("Failed to improve text");
       setRegeneratedText(null);
+      clearSelection();
     } finally {
       setIsRegenerating(false);
     }
@@ -278,30 +256,26 @@ export function PRDPreview({
 
   // Accept improved text
   const handleAcceptImproved = () => {
-    if (!selectionRange || !regeneratedText) return;
+    if (!selection.range || !regeneratedText) return;
 
     const newContent =
-      currentContent.slice(0, selectionRange.start) +
+      currentContent.slice(0, selection.range.start) +
       regeneratedText +
-      currentContent.slice(selectionRange.end);
+      currentContent.slice(selection.range.end);
 
     const newVersion = { content: newContent, timestamp: Date.now() };
     setVersions(prev => [...prev.slice(0, currentVersionIndex + 1), newVersion]);
     setCurrentVersionIndex(prev => prev + 1);
 
-    // Clear selection state
-    setSelectedText("");
-    setSelectionRange(null);
-    setSelectionPosition(null);
     setRegeneratedText(null);
+    clearSelection();
     toast.success("Changes applied");
-    window.getSelection()?.removeAllRanges();
   };
 
   // Reject improved text
   const handleRejectImproved = () => {
     setRegeneratedText(null);
-    toast.info("Changes discarded");
+    clearSelection();
   };
 
   // Rollback to previous version
@@ -320,7 +294,19 @@ export function PRDPreview({
     }
   };
 
-  // Custom components for better styling
+  // Handle clicks outside selection
+  const handlePointerDownOutside = (e: React.PointerEvent) => {
+    if (isLocked) return; // Don't clear while reviewing
+
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-toolbar]")) return;
+    if (contentRef.current?.contains(target)) return;
+
+    clearSelection();
+    window.getSelection()?.removeAllRanges();
+  };
+
+  // Custom components for markdown rendering
   const components: Components = {
     h1: ({ children }) => (
       <h1 className="text-2xl font-bold mt-8 mb-4 text-foreground border-b pb-2">
@@ -440,6 +426,9 @@ export function PRDPreview({
       <hr className="my-6 border-border" />
     ),
   };
+
+  // Determine if we're in review mode (showing AI suggestion)
+  const isReviewMode = isLocked && regeneratedText !== null;
 
   return (
     <div className="h-full flex flex-col bg-card border-l border-border">
@@ -595,56 +584,124 @@ export function PRDPreview({
               <PanelRightClose className="h-3.5 w-3.5" />
             </Button>
           )}
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={onClose}
-            title="Close"
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
         </div>
       </div>
 
-      {/* Floating Text Improvement Toolbar */}
-      <TextImprovementToolbar
-        selectedText={selectedText}
-        position={selectionPosition}
-        onImprove={handleImprove}
-        isProcessing={isRegenerating}
-        improvedText={regeneratedText}
-        onAccept={handleAcceptImproved}
-        onReject={handleRejectImproved}
-      />
+      {/* Floating Text Improvement Toolbar - only show when not reviewing */}
+      {!isReviewMode && (
+        <TextImprovementToolbar
+          selectedText={selection.text}
+          position={selection.position}
+          onImprove={handleImprove}
+          isProcessing={isRegenerating}
+          improvedText={regeneratedText}
+          onAccept={handleAcceptImproved}
+          onReject={handleRejectImproved}
+        />
+      )}
+      
+      {/* Floating Confirm/Decline panel when reviewing improved text */}
+      {isReviewMode && selection.position && (
+        <div
+          data-toolbar
+          className="fixed z-[1000] animate-in fade-in-0 zoom-in-95 duration-150"
+          style={{
+            left: Math.max(16, Math.min(selection.position.x - 200, window.innerWidth - 416)),
+            top: Math.max(16, selection.position.y),
+            width: 400,
+          }}
+        >
+          <div className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="px-4 py-2.5 bg-primary/5 border-b border-border flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span className="text-sm font-medium">AI Suggestion</span>
+            </div>
+            
+            {/* Comparison */}
+            <div className="p-3 space-y-2 max-h-48 overflow-y-auto">
+              <div>
+                <span className="text-xs text-muted-foreground uppercase tracking-wide">Original</span>
+                <div className="mt-1 p-2 bg-muted/50 rounded text-sm line-through opacity-60 max-h-16 overflow-y-auto">
+                  {selection.text.length > 150 ? selection.text.slice(0, 150) + "..." : selection.text}
+                </div>
+              </div>
+              <div>
+                <span className="text-xs text-primary uppercase tracking-wide font-medium">Improved</span>
+                <div className="mt-1 p-2 bg-primary/10 border border-primary/20 rounded text-sm max-h-16 overflow-y-auto">
+                  {regeneratedText && regeneratedText.length > 150 ? regeneratedText.slice(0, 150) + "..." : regeneratedText}
+                </div>
+              </div>
+            </div>
+            
+            {/* Actions */}
+            <div className="px-4 py-3 bg-muted/30 border-t border-border flex items-center justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleRejectImproved}
+                className="h-8 px-3 gap-1.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+              >
+                <X className="h-3.5 w-3.5" />
+                Decline
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleAcceptImproved}
+                className="h-8 px-3 gap-1.5 gradient-brand text-primary-foreground"
+              >
+                <Check className="h-3.5 w-3.5" />
+                Confirm
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
-      <ScrollArea className="flex-1">
-        {currentContent ? (
-          <article
-            ref={contentRef}
-            className="px-6 py-6 max-w-4xl mx-auto"
-            onMouseUp={handleTextSelection}
-          >
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={components}
+      <ScrollArea className="flex-1" onPointerDownCapture={handlePointerDownOutside}>
+        <div ref={scrollAreaRef} className="relative">
+          {/* Selection highlight overlay */}
+          {hasSelection && (
+            <SelectionHighlight
+              rects={selection.rects}
+              containerRef={scrollAreaRef}
+              variant={isReviewMode ? "improved" : "selection"}
+            />
+          )}
+          
+          {displayedContent ? (
+            <article
+              ref={contentRef}
+              className={cn(
+                "px-6 py-6 max-w-4xl mx-auto select-text cursor-text",
+                isReviewMode && "ring-2 ring-primary/20 rounded-lg relative"
+              )}
             >
-              {currentContent}
-            </ReactMarkdown>
-          </article>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12">
-            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mb-4">
-              <FileText className="h-6 w-6 text-muted-foreground" />
+              {isReviewMode && (
+                <div className="absolute top-0 right-0 bg-primary/10 text-primary text-xs px-2 py-1 rounded-bl-lg border-l border-b border-primary/20">
+                  Preview
+                </div>
+              )}
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={components}
+              >
+                {displayedContent}
+              </ReactMarkdown>
+            </article>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center py-12">
+              <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mb-4">
+                <FileText className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <h3 className="font-medium mb-2">No PRD yet</h3>
+              <p className="text-sm text-muted-foreground max-w-[200px]">
+                Start a conversation to generate your PRD
+              </p>
             </div>
-            <h3 className="font-medium mb-2">No PRD yet</h3>
-            <p className="text-sm text-muted-foreground max-w-[200px]">
-              Start a conversation to generate your PRD
-            </p>
-          </div>
-        )}
+          )}
+        </div>
       </ScrollArea>
 
       {/* Project Selection Dialog */}

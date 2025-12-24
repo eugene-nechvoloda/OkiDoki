@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -69,7 +69,7 @@ export default function Projects() {
   const { user } = useAuth();
   const { chats, currentChat, createNewChat, selectChat } = useChat();
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -294,40 +294,105 @@ export default function Projects() {
     const selection = window.getSelection();
     const selected = selection?.toString().trim();
 
-    if (selected && selected.length > 10 && docContentRef.current) {
-      const range = selection?.getRangeAt(0);
-      if (range && docContentRef.current.contains(range.commonAncestorContainer)) {
-        setSelectedText(selected);
-        const rect = range.getBoundingClientRect();
-        setSelectionPosition({
-          x: rect.left + rect.width / 2,
-          y: rect.bottom + 8,
-        });
+    if (selected && selected.length > 3 && docContentRef.current) {
+      try {
+        const range = selection?.getRangeAt(0);
+        if (range && docContentRef.current.contains(range.commonAncestorContainer)) {
+          setSelectedText(selected);
+          const rect = range.getBoundingClientRect();
+          setSelectionPosition({
+            x: rect.left + rect.width / 2,
+            y: rect.bottom + 8,
+          });
 
-        const preSelectionRange = range.cloneRange();
-        preSelectionRange.selectNodeContents(docContentRef.current);
-        preSelectionRange.setEnd(range.startContainer, range.startOffset);
-        const start = preSelectionRange.toString().length;
-        const end = start + selected.length;
-        setSelectionRange({ start, end });
+          const preSelectionRange = range.cloneRange();
+          preSelectionRange.selectNodeContents(docContentRef.current);
+          preSelectionRange.setEnd(range.startContainer, range.startOffset);
+          const start = preSelectionRange.toString().length;
+          const end = start + selected.length;
+          setSelectionRange({ start, end });
+        }
+      } catch (e) {
+        // Selection might be invalid
       }
-    } else if (!regeneratedText) {
-      setSelectedText("");
-      setSelectionRange(null);
-      setSelectionPosition(null);
     }
   };
 
-  const handleClickOutside = (e: React.MouseEvent) => {
-    if (!regeneratedText) {
-      const target = e.target as HTMLElement;
-      if (!target.closest('[data-toolbar]')) {
-        setSelectedText("");
-        setSelectionRange(null);
-        setSelectionPosition(null);
-        window.getSelection()?.removeAllRanges();
+  // Clear selection state (but don't clear browser selection to keep highlight)
+  const clearSelectionState = () => {
+    if (regeneratedText) return;
+    setSelectedText("");
+    setSelectionRange(null);
+    setSelectionPosition(null);
+  };
+
+  // Use effect to add global pointer listeners for better selection detection
+  useEffect(() => {
+    const checkSelection = () => {
+      const selection = window.getSelection();
+      const selected = selection?.toString().trim();
+
+      if (selected && selected.length > 3 && docContentRef.current) {
+        try {
+          const range = selection?.getRangeAt(0);
+          if (range && docContentRef.current.contains(range.commonAncestorContainer)) {
+            setSelectedText(selected);
+
+            const rect = range.getBoundingClientRect();
+            setSelectionPosition({
+              x: rect.left + rect.width / 2,
+              y: rect.bottom + 8,
+            });
+
+            const preSelectionRange = range.cloneRange();
+            preSelectionRange.selectNodeContents(docContentRef.current);
+            preSelectionRange.setEnd(range.startContainer, range.startOffset);
+            const start = preSelectionRange.toString().length;
+            const end = start + selected.length;
+            setSelectionRange({ start, end });
+          }
+        } catch (e) {
+          // Selection might be invalid
+        }
       }
-    }
+    };
+
+    const handleGlobalPointerUp = () => {
+      setTimeout(checkSelection, 20);
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift" || e.key.startsWith("Arrow")) {
+        setTimeout(checkSelection, 20);
+      }
+    };
+
+    // Also listen to selectionchange for more reliable detection
+    const handleSelectionChange = () => {
+      setTimeout(checkSelection, 50);
+    };
+
+    document.addEventListener("pointerup", handleGlobalPointerUp, true);
+    document.addEventListener("keyup", handleKeyUp, true);
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => {
+      document.removeEventListener("pointerup", handleGlobalPointerUp, true);
+      document.removeEventListener("keyup", handleKeyUp, true);
+      document.removeEventListener("selectionchange", handleSelectionChange);
+    };
+  }, [regeneratedText, selectedDoc]);
+
+  // Clear selection when the user clicks outside the document content/toolbar
+  const handlePointerDownOutside = (e: React.PointerEvent) => {
+    if (regeneratedText) return;
+
+    const target = e.target as HTMLElement;
+
+    if (target.closest("[data-toolbar]")) return;
+    if (docContentRef.current?.contains(target)) return;
+
+    clearSelectionState();
+    window.getSelection()?.removeAllRanges();
   };
 
   const handleImproveSelection = async (prompt: string) => {
@@ -385,29 +450,20 @@ export default function Projects() {
 
   const handleRejectImproved = () => {
     setRegeneratedText(null);
-    toast.info("Changes discarded");
+    setSelectedText("");
+    setSelectionRange(null);
+    setSelectionPosition(null);
+    window.getSelection()?.removeAllRanges();
   };
 
   return (
-    <div className="h-screen flex bg-background overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar
-        chats={chats}
-        currentChatId={currentChat?.id}
-        onNewChat={createNewChat}
-        onSelectChat={selectChat}
-        onNavigate={(view) => {
-          if (view === "chats") navigate("/");
-          if (view === "projects") navigate("/projects");
-          if (view === "templates") navigate("/templates");
-          if (view === "integrations") navigate("/integrations");
-        }}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-0">
+    <MainLayout
+      chats={chats}
+      currentChatId={currentChat?.id}
+      onNewChat={createNewChat}
+      onSelectChat={selectChat}
+    >
+      <div className="h-full flex flex-col min-h-0">
         {selectedDoc ? (
           // Document Editor View
           <div className="flex-1 flex flex-col min-h-0">
@@ -473,7 +529,7 @@ export default function Projects() {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto" onClick={handleClickOutside}>
+            <div className="flex-1 min-h-0 overflow-y-auto" onPointerDownCapture={handlePointerDownOutside}>
               <TextImprovementToolbar
                 selectedText={selectedText}
                 position={selectionPosition}
@@ -497,8 +553,10 @@ export default function Projects() {
                 ) : (
                   <article
                     ref={docContentRef}
-                    className="prose prose-neutral dark:prose-invert max-w-none pb-20"
-                    onMouseUp={handleTextSelection}
+                    className={cn(
+                      "prose prose-neutral dark:prose-invert max-w-none pb-20 select-text cursor-text text-selectable",
+                      selectedText && "has-active-selection"
+                    )}
                   >
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                       {editContent || "*No content*"}
@@ -823,6 +881,6 @@ export default function Projects() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </MainLayout>
   );
 }

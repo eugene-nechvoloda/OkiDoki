@@ -5,6 +5,8 @@ import { BUILT_IN_TEMPLATES } from "@/data/templates";
 import { saveChat, getChats, getChat, saveDocument, generatePRD } from "@/services/api";
 import { useAuth } from "@/providers/AuthProvider";
 
+const SELECTED_TEMPLATE_STORAGE_KEY = "okidoki.selectedTemplate";
+
 export function useChat() {
   const { user } = useAuth();
   const [chats, setChats] = useState<Chat[]>([]);
@@ -12,9 +14,30 @@ export function useChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [streamingContent, setStreamingContent] = useState("");
-  const [selectedTemplate, setSelectedTemplate] = useState<PRDTemplate>(
-    BUILT_IN_TEMPLATES[0]
-  );
+  const [selectedTemplate, setSelectedTemplate] = useState<PRDTemplate | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(SELECTED_TEMPLATE_STORAGE_KEY);
+      if (!raw) return null;
+
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed) return null;
+
+      const t = parsed as Partial<PRDTemplate>;
+      if (typeof t.id !== "string" || typeof t.name !== "string") return null;
+
+      return {
+        id: t.id,
+        name: t.name,
+        description: typeof t.description === "string" ? t.description : "",
+        sections: Array.isArray(t.sections) ? (t.sections as string[]) : [],
+        isBuiltIn: !!t.isBuiltIn,
+        icon: typeof t.icon === "string" ? t.icon : undefined,
+      };
+    } catch {
+      return null;
+    }
+  });
   const [prdContent, setPrdContent] = useState("");
 
   // TEMPORARY: Debug logging
@@ -23,6 +46,19 @@ export function useChat() {
     console.log('🔍 useChat - User ID:', user?.id);
     console.log('🔍 useChat - User is null?', !user);
   }, [user]);
+
+  // Persist selected template (including null for Auto)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        SELECTED_TEMPLATE_STORAGE_KEY,
+        JSON.stringify(selectedTemplate)
+      );
+    } catch {
+      // ignore
+    }
+  }, [selectedTemplate]);
 
   // Load chat history on mount (works in guest mode too)
   useEffect(() => {
@@ -144,10 +180,12 @@ export function useChat() {
       setIsLoading(true);
       setStreamingContent("");
 
-      // Get the template object if templateId is provided
-      const template = settings.templateId
-        ? BUILT_IN_TEMPLATES.find(t => t.id === settings.templateId) || selectedTemplate
-        : null;
+       // Get the template object if templateId is provided
+       const template = settings.templateId
+         ? BUILT_IN_TEMPLATES.find((t) => t.id === settings.templateId) ||
+           selectedTemplate ||
+           null
+         : null;
 
       try {
         let fullContent = "";

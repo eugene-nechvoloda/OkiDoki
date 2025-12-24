@@ -5,6 +5,7 @@ export const BUILT_IN_TEMPLATES: PRDTemplate[] = [
     id: "standard-prd",
     name: "Standard PRD",
     description: "Comprehensive product requirements document with all essential sections",
+    icon: "FileText",
     sections: [
       "Executive Summary",
       "Problem Statement",
@@ -21,9 +22,55 @@ export const BUILT_IN_TEMPLATES: PRDTemplate[] = [
     isBuiltIn: true,
   },
   {
+    id: "lean-prd",
+    name: "Lean PRD",
+    description: "Streamlined PRD for agile teams and quick iterations",
+    icon: "Zap",
+    sections: [
+      "Problem",
+      "Solution",
+      "Key Features",
+      "Success Metrics",
+      "Timeline",
+    ],
+    isBuiltIn: true,
+  },
+  {
+    id: "feature-spec",
+    name: "Feature Spec",
+    description: "Detailed specification for a single feature or enhancement",
+    icon: "Puzzle",
+    sections: [
+      "Feature Overview",
+      "User Stories",
+      "Acceptance Criteria",
+      "Technical Requirements",
+      "Design Mockups",
+      "Dependencies",
+    ],
+    isBuiltIn: true,
+  },
+  {
+    id: "technical-design-doc",
+    name: "Technical Design Doc",
+    description: "In-depth technical architecture and implementation details",
+    icon: "Cpu",
+    sections: [
+      "Overview",
+      "Architecture",
+      "Data Models",
+      "API Design",
+      "Security Considerations",
+      "Performance Requirements",
+      "Testing Strategy",
+    ],
+    isBuiltIn: true,
+  },
+  {
     id: "discovery-brief",
     name: "Discovery Brief",
     description: "Lightweight template for early-stage product discovery",
+    icon: "Search",
     sections: [
       "Context",
       "Hypotheses",
@@ -38,6 +85,7 @@ export const BUILT_IN_TEMPLATES: PRDTemplate[] = [
     id: "experiment-prd",
     name: "Experiment PRD",
     description: "Template for A/B tests and controlled experiments",
+    icon: "FlaskConical",
     sections: [
       "Hypothesis",
       "Experiment Design",
@@ -53,6 +101,7 @@ export const BUILT_IN_TEMPLATES: PRDTemplate[] = [
     id: "rfc",
     name: "RFC (Request for Comments)",
     description: "Lightweight decision document for technical or process changes",
+    icon: "MessageSquareText",
     sections: [
       "Proposal",
       "Rationale",
@@ -67,6 +116,7 @@ export const BUILT_IN_TEMPLATES: PRDTemplate[] = [
     id: "api-documentation",
     name: "API Documentation",
     description: "Comprehensive guide for documenting APIs",
+    icon: "Code",
     sections: [
       "Overview",
       "Authentication",
@@ -81,6 +131,7 @@ export const BUILT_IN_TEMPLATES: PRDTemplate[] = [
     id: "competitive-analysis",
     name: "Competitive Analysis Report",
     description: "Framework for analyzing competitors and market positioning",
+    icon: "TrendingUp",
     sections: [
       "Executive Summary",
       "Competitors Overview",

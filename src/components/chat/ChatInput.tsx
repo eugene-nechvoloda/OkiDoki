@@ -1,5 +1,4 @@
 import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -40,8 +39,8 @@ import { IntegrationsQuickPanel } from "@/components/integrations/IntegrationsQu
 
 interface ChatInputProps {
   onSend: (message: string, settings: ChatSettings) => void;
-  selectedTemplate?: PRDTemplate;
-  onSelectTemplate: (template: PRDTemplate) => void;
+  selectedTemplate?: PRDTemplate | null;
+  onSelectTemplate: (template: PRDTemplate | null) => void;
   isLoading?: boolean;
   placeholder?: string;
 }
@@ -66,17 +65,17 @@ const HIERARCHY_LEVELS = [
 
 export function ChatInput({
   onSend,
+  selectedTemplate,
+  onSelectTemplate,
   isLoading,
   placeholder = "Describe your product idea...",
 }: ChatInputProps) {
-  const navigate = useNavigate();
   const [input, setInput] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTone, setSelectedTone] = useState("balanced");
   const [selectedDocType, setSelectedDocType] = useState("single");
   const [selectedHierarchy, setSelectedHierarchy] = useState("1-level");
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [toneSubmenu, setToneSubmenu] = useState(false);
   const [docTypeSubmenu, setDocTypeSubmenu] = useState(false);
@@ -92,12 +91,13 @@ export function ChatInput({
         tone: selectedTone,
         docType: selectedDocType,
         hierarchy: selectedHierarchy,
-        templateId: selectedTemplateId,
+        templateId: selectedTemplate?.id ?? null,
       });
       setInput("");
       setUploadedFiles([]);
     }
   };
+
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -125,9 +125,7 @@ export function ChatInput({
   const currentTone = TONES.find((t) => t.id === selectedTone);
   const currentDocType = DOCUMENT_TYPES.find((d) => d.id === selectedDocType);
   const currentHierarchy = HIERARCHY_LEVELS.find((h) => h.id === selectedHierarchy);
-  const currentTemplate = selectedTemplateId 
-    ? BUILT_IN_TEMPLATES.find((t) => t.id === selectedTemplateId) 
-    : null;
+  const currentTemplate = selectedTemplate ?? null;
 
   return (
     <div className="border border-border/60 rounded-2xl bg-card/80 backdrop-blur-sm shadow-elegant overflow-hidden">
@@ -141,9 +139,28 @@ export function ChatInput({
         accept=".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.webp"
       />
       
-      {/* Uploaded files display */}
-      {uploadedFiles.length > 0 && (
-        <div className="px-4 pt-3 pb-1 flex flex-wrap gap-2">
+      {/* Selected template badge and uploaded files */}
+       {(currentTemplate || uploadedFiles.length > 0) && (
+         <div className="px-4 pt-3 pb-1 flex flex-wrap gap-2">
+           {/* Template badge */}
+           {currentTemplate && (
+             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-sm">
+               <LayoutTemplate className="h-3.5 w-3.5 text-primary" />
+               <span className="text-primary font-medium">{currentTemplate.name}</span>
+               <button
+                 onClick={() => {
+                   onSelectTemplate(null);
+                 }}
+                 className="h-4 w-4 rounded-full hover:bg-primary/20 flex items-center justify-center"
+                 aria-label="Clear template"
+                 type="button"
+               >
+                 <X className="h-3 w-3 text-primary" />
+               </button>
+             </div>
+           )}
+
+          {/* Uploaded files */}
           {uploadedFiles.map((file, index) => (
             <div
               key={index}
@@ -405,7 +422,7 @@ export function ChatInput({
                   <div className="h-px bg-border/50 my-1" />
                   <button
                     onClick={() => {
-                      setSelectedTemplateId(null);
+                      onSelectTemplate(null);
                       setTemplateSubmenu(false);
                     }}
                     className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors"
@@ -414,7 +431,7 @@ export function ChatInput({
                       <div className="text-sm font-medium">Auto (LLM decides)</div>
                       <div className="text-xs text-muted-foreground">AI picks the best format</div>
                     </div>
-                    {selectedTemplateId === null && (
+                    {selectedTemplate === null && (
                       <div className="h-5 w-5 rounded-full bg-primary/15 flex items-center justify-center">
                         <Check className="h-3 w-3 text-primary" />
                       </div>
@@ -425,7 +442,7 @@ export function ChatInput({
                     <button
                       key={template.id}
                       onClick={() => {
-                        setSelectedTemplateId(template.id);
+                        onSelectTemplate(template);
                         setTemplateSubmenu(false);
                       }}
                       className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/80 text-left transition-colors"
@@ -434,7 +451,7 @@ export function ChatInput({
                         <div className="text-sm font-medium">{template.name}</div>
                         <div className="text-xs text-muted-foreground line-clamp-1">{template.description}</div>
                       </div>
-                      {selectedTemplateId === template.id && (
+                      {selectedTemplate?.id === template.id && (
                         <div className="h-5 w-5 rounded-full bg-primary/15 flex items-center justify-center">
                           <Check className="h-3 w-3 text-primary" />
                         </div>

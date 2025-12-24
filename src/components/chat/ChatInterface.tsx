@@ -7,11 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import type { Message, PRDTemplate, QuickActionType, ChatSettings } from "@/types";
 import { BUILT_IN_TEMPLATES } from "@/data/templates";
 import { Sliders, FileText, Layers } from "lucide-react";
+import okidokiLogo from "@/assets/logos/okidoki-logo.png";
 
 interface ChatInterfaceProps {
   messages: Message[];
-  selectedTemplate?: PRDTemplate;
-  onSelectTemplate: (template: PRDTemplate) => void;
+  selectedTemplate?: PRDTemplate | null;
+  onSelectTemplate: (template: PRDTemplate | null) => void;
   onSendMessage: (message: string, settings: ChatSettings) => void;
   isLoading: boolean;
   streamingContent?: string;
@@ -139,12 +140,10 @@ export function ChatInterface({
           <div className="flex-1 flex flex-col items-center justify-center px-6 animate-fade-in">
             {/* Welcome header */}
             <div className="text-center mb-8">
-              <div className="w-14 h-14 rounded-2xl gradient-brand flex items-center justify-center mx-auto mb-6">
-                <span className="text-2xl font-bold text-primary-foreground">O</span>
-              </div>
+              <img src={okidokiLogo} alt="OkiDoki" className="w-20 h-20 mx-auto mb-6 drop-shadow-lg" />
               <h1 className="text-3xl md:text-4xl font-display font-bold">
                 How can I{" "}
-                <span className="bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-primary to-fuchsia-500 bg-clip-text text-transparent">
                   help you today
                 </span>
                 ?
@@ -186,9 +185,7 @@ export function ChatInterface({
             )}
             {isLoading && !streamingContent && (
               <div className="flex gap-4 py-6">
-                <div className="w-8 h-8 rounded-full gradient-brand flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-bold text-primary-foreground">O</span>
-                </div>
+                <img src={okidokiLogo} alt="OkiDoki" className="w-8 h-8 flex-shrink-0" />
                 <div className="flex items-center gap-1 py-3">
                   <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
                   <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />

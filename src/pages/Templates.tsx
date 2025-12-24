@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,14 @@ import {
   Trash2,
   MoreHorizontal,
   X,
+  FlaskConical,
+  MessageSquareText,
+  Code,
+  TrendingUp,
+  Zap,
+  Puzzle,
+  Cpu,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getTemplates, createTemplate, updateTemplate, deleteTemplate } from "@/services/api";
@@ -50,12 +58,31 @@ import { useChat } from "@/hooks/useChat";
 import type { Template } from "@/types/database";
 import { toast } from "sonner";
 
+// Icon mapping for templates
+const TEMPLATE_ICONS: Record<string, LucideIcon> = {
+  FileText,
+  Search,
+  FlaskConical,
+  MessageSquareText,
+  Code,
+  TrendingUp,
+  Zap,
+  Puzzle,
+  Cpu,
+  LayoutTemplate, // default fallback
+};
+
+const getTemplateIcon = (iconName?: string): LucideIcon => {
+  if (!iconName) return LayoutTemplate;
+  return TEMPLATE_ICONS[iconName] || LayoutTemplate;
+};
+
 export default function Templates() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { chats, currentChat, createNewChat, selectChat, setSelectedTemplate } = useChat();
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -220,20 +247,21 @@ export default function Templates() {
       ? template.sections
       : [];
 
-    setSelectedTemplate({
+    const templateData = {
       id: template.id,
       name: template.name,
       description: template.description || "",
       sections: sections as string[],
       isBuiltIn: !template.is_custom,
-    });
+    };
 
+    // Create a new chat and navigate with template in state
+    createNewChat();
+    
     toast.success(`Using template: ${template.name}`);
 
-    // Navigate back to chat to start creating PRD with this template
-    setTimeout(() => {
-      navigate("/");
-    }, 500);
+    // Navigate to chat with template data in state
+    navigate("/", { state: { selectedTemplate: templateData } });
   };
 
   // Handle viewing template details
@@ -246,6 +274,10 @@ export default function Templates() {
       ? template.sections
       : [];
     const isExpanded = selectedTemplateId === template.id;
+    
+    // Get icon - check if template has icon field (from built-in) or use default
+    const iconName = (template as any).icon as string | undefined;
+    const IconComponent = getTemplateIcon(iconName);
 
     return (
       <div
@@ -256,8 +288,8 @@ export default function Templates() {
       >
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <LayoutTemplate className="h-5 w-5 text-primary" />
+            <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
+              <IconComponent className="h-5 w-5 text-primary" />
             </div>
             <div>
               <h3 className="font-semibold text-lg">{template.name}</h3>
@@ -344,25 +376,13 @@ export default function Templates() {
   };
 
   return (
-    <div className="h-screen flex bg-background overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar
-        chats={chats}
-        currentChatId={currentChat?.id}
-        onNewChat={createNewChat}
-        onSelectChat={selectChat}
-        onNavigate={(view) => {
-          if (view === "chats") navigate("/");
-          if (view === "projects") navigate("/projects");
-          if (view === "templates") navigate("/templates");
-          if (view === "integrations") navigate("/integrations");
-        }}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <MainLayout
+      chats={chats}
+      currentChatId={currentChat?.id}
+      onNewChat={createNewChat}
+      onSelectChat={selectChat}
+    >
+      <div className="h-full flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-border">
           <div className="flex items-center justify-between mb-4">
@@ -550,28 +570,28 @@ export default function Templates() {
             )}
           </div>
         </ScrollArea>
-      </div>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Template</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this template? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeleteTemplate}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Template</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this template? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDeleteTemplate}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </MainLayout>
   );
 }

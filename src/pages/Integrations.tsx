@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ import {
 } from "@/services/api";
 import type { Integration } from "@/types/database";
 import { IntegrationSetupDialog } from "@/components/integrations/IntegrationSetupDialog";
+import { IntegrationLogo } from "@/components/integrations/IntegrationLogos";
 import {
   Collapsible,
   CollapsibleContent,
@@ -44,7 +45,7 @@ export default function Integrations() {
   const { user } = useAuth();
   const { chats, currentChat, createNewChat, selectChat } = useChat();
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
   const [activeTab, setActiveTab] = useState("knowledge");
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,26 +119,13 @@ export default function Integrations() {
   ];
 
   return (
-    <div className="h-screen flex bg-background overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar
-        chats={chats}
-        currentChatId={currentChat?.id}
-        onNewChat={createNewChat}
-        onSelectChat={selectChat}
-        onNavigate={(view) => {
-          if (view === "chats") navigate("/");
-          if (view === "projects") navigate("/projects");
-          if (view === "templates") navigate("/templates");
-          if (view === "documents") navigate("/documents");
-          if (view === "integrations") navigate("/integrations");
-        }}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <MainLayout
+      chats={chats}
+      currentChatId={currentChat?.id}
+      onNewChat={createNewChat}
+      onSelectChat={selectChat}
+    >
+      <div className="h-full flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3 mb-1">
@@ -275,7 +263,7 @@ export default function Integrations() {
                         Loading integrations...
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-4">
                         {exportIntegrations.map(({ provider, config }) => {
                           const integration = getIntegrationByProvider(provider);
                           const isConnected = !!integration;
@@ -293,8 +281,8 @@ export default function Integrations() {
                             >
                               <div className="flex items-start justify-between mb-3">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-2xl">
-                                    {config.icon}
+                                  <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+                                    <IntegrationLogo provider={provider} className="w-6 h-6" />
                                   </div>
                                   <div>
                                     <h3 className="font-semibold flex items-center gap-2">
@@ -303,86 +291,16 @@ export default function Integrations() {
                                         <Check className="h-4 w-4 text-green-500" />
                                       )}
                                     </h3>
-                                    <p className="text-xs text-muted-foreground">
+                                    <p className="text-sm text-muted-foreground">
                                       {config.description}
                                     </p>
                                   </div>
                                 </div>
-                              </div>
-
-                              {isConnected && integration ? (
-                                <div className="space-y-3">
-                                  <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                                    <Check className="h-3 w-3" />
-                                    Connected
-                                  </div>
-
-                                  {/* Collapsible Details */}
-                                  <Collapsible
-                                    open={isExpanded}
-                                    onOpenChange={() =>
-                                      toggleExpanded(integration.id)
-                                    }
-                                  >
-                                    <CollapsibleTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="w-full justify-between text-xs"
-                                      >
-                                        <span>View Details</span>
-                                        {isExpanded ? (
-                                          <ChevronDown className="h-3 w-3" />
-                                        ) : (
-                                          <ChevronRight className="h-3 w-3" />
-                                        )}
-                                      </Button>
-                                    </CollapsibleTrigger>
-                                    <CollapsibleContent className="space-y-2 mt-2">
-                                      {(integration.config_json as Record<string, unknown>)?.workspace_name && (
-                                        <div className="text-xs">
-                                          <span className="text-muted-foreground">
-                                            Workspace:{" "}
-                                          </span>
-                                          <span className="font-medium">
-                                            {(integration.config_json as Record<string, unknown>).workspace_name as string}
-                                          </span>
-                                        </div>
-                                      )}
-
-                                      <div className="text-xs">
-                                        <span className="text-muted-foreground">
-                                          Scopes:{" "}
-                                        </span>
-                                        <div className="mt-1 space-y-1">
-                                          {config.scopes.map((scope) => (
-                                            <div
-                                              key={scope}
-                                              className="flex items-center gap-1"
-                                            >
-                                              <Check className="h-2.5 w-2.5 text-green-500" />
-                                              <code className="text-[10px] bg-muted px-1 py-0.5 rounded">
-                                                {scope}
-                                              </code>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-
-                                      <div className="text-xs text-muted-foreground">
-                                        Connected{" "}
-                                        {new Date(
-                                          integration.created_at
-                                        ).toLocaleDateString()}
-                                      </div>
-                                    </CollapsibleContent>
-                                  </Collapsible>
-
+                                {isConnected && integration ? (
                                   <div className="flex gap-2">
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      className="flex-1"
                                       onClick={() =>
                                         handleDisconnect(
                                           integration.id,
@@ -402,16 +320,78 @@ export default function Integrations() {
                                       Reconnect
                                     </Button>
                                   </div>
-                                </div>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  className="w-full gradient-brand text-primary-foreground"
-                                  onClick={() => handleConnect(provider)}
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleConnect(provider)}
+                                  >
+                                    <Plug className="h-3 w-3 mr-2" />
+                                    Connect
+                                  </Button>
+                                )}
+                              </div>
+
+                              {isConnected && integration && (
+                                <Collapsible
+                                  open={isExpanded}
+                                  onOpenChange={() =>
+                                    toggleExpanded(integration.id)
+                                  }
                                 >
-                                  <Plug className="h-3 w-3 mr-2" />
-                                  Connect
-                                </Button>
+                                  <CollapsibleTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="w-full justify-between text-xs"
+                                    >
+                                      <span>View Details</span>
+                                      {isExpanded ? (
+                                        <ChevronDown className="h-3 w-3" />
+                                      ) : (
+                                        <ChevronRight className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent className="space-y-2 mt-2">
+                                    {(integration.config_json as Record<string, unknown>)?.workspace_name && (
+                                      <div className="text-xs">
+                                        <span className="text-muted-foreground">
+                                          Workspace:{" "}
+                                        </span>
+                                        <span className="font-medium">
+                                          {(integration.config_json as Record<string, unknown>).workspace_name as string}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    <div className="text-xs">
+                                      <span className="text-muted-foreground">
+                                        Scopes:{" "}
+                                      </span>
+                                      <div className="mt-1 space-y-1">
+                                        {config.scopes.map((scope) => (
+                                          <div
+                                            key={scope}
+                                            className="flex items-center gap-1"
+                                          >
+                                            <Check className="h-2.5 w-2.5 text-green-500" />
+                                            <code className="text-[10px] bg-muted px-1 py-0.5 rounded">
+                                              {scope}
+                                            </code>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    <div className="text-xs text-muted-foreground">
+                                      Connected{" "}
+                                      {new Date(
+                                        integration.created_at
+                                      ).toLocaleDateString()}
+                                    </div>
+                                  </CollapsibleContent>
+                                </Collapsible>
                               )}
                             </div>
                           );
@@ -517,15 +497,15 @@ export default function Integrations() {
             </ScrollArea>
           </Tabs>
         </div>
-      </div>
 
-      {/* Integration Setup Dialog */}
-      <IntegrationSetupDialog
-        provider={setupProvider}
-        open={showSetupDialog}
-        onOpenChange={setShowSetupDialog}
-        onSuccess={loadIntegrations}
-      />
-    </div>
+        {/* Integration Setup Dialog */}
+        <IntegrationSetupDialog
+          provider={setupProvider}
+          open={showSetupDialog}
+          onOpenChange={setShowSetupDialog}
+          onSuccess={loadIntegrations}
+        />
+      </div>
+    </MainLayout>
   );
 }

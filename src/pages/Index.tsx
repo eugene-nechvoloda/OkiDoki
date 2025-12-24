@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { PRDPreview } from "@/components/prd/PRDPreview";
 import { useChat } from "@/hooks/useChat";
@@ -13,7 +13,6 @@ import { PanelRightClose } from "lucide-react";
 const Index = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [previewClosed, setPreviewClosed] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -38,14 +37,31 @@ const Index = () => {
 
   // If we navigated here by selecting a chat from another page, open it automatically.
   useEffect(() => {
-    const state = location.state as { chatId?: string } | null;
+    const state = location.state as { chatId?: string; selectedTemplate?: typeof selectedTemplate } | null;
     const chatId = state?.chatId;
-    if (!chatId) return;
+    const template = state?.selectedTemplate;
 
-    selectChat(chatId);
+    if (chatId) {
+      selectChat(chatId);
+    }
+
+    if (template) {
+      // Ensure template has the correct PRDTemplate shape
+      const prdTemplate = {
+        id: template.id,
+        name: template.name,
+        description: template.description || "",
+        sections: Array.isArray(template.sections) ? template.sections : [],
+        isBuiltIn: !!template.isBuiltIn,
+      };
+      setSelectedTemplate(prdTemplate);
+    }
+
     // Clear the navigation state so refresh/back doesn't re-trigger.
-    navigate("/", { replace: true, state: null });
-  }, [location.state, navigate, selectChat]);
+    if (chatId || template) {
+      navigate("/", { replace: true, state: null });
+    }
+  }, [location.state, navigate, selectChat, setSelectedTemplate]);
 
   async function loadProjects() {
     try {
@@ -88,20 +104,13 @@ const Index = () => {
   };
 
   return (
-    <div className="h-screen flex bg-background overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar
-        chats={chats}
-        currentChatId={currentChat?.id}
-        onNewChat={createNewChat}
-        onSelectChat={selectChat}
-        onNavigate={(view) => console.log("Navigate to:", view)}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
-
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden relative">
+    <MainLayout
+      chats={chats}
+      currentChatId={currentChat?.id}
+      onNewChat={createNewChat}
+      onSelectChat={selectChat}
+    >
+      <div className="h-full flex overflow-hidden relative">
         {/* Chat */}
         <div className="flex-1">
           <ChatInterface
@@ -147,7 +156,7 @@ const Index = () => {
           </>
         )}
       </div>
-    </div>
+    </MainLayout>
   );
 };
 
