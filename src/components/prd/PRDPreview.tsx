@@ -54,19 +54,38 @@ import { cn } from "@/lib/utils";
 
 // Strip markdown formatting from text to preserve original style
 const stripMarkdownFormatting = (text: string): string => {
-  return text
-    // Remove headers (# to ######)
-    .replace(/^#{1,6}\s+/gm, "")
-    // Remove bold (**text** or __text__)
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/__([^_]+)__/g, "$1")
-    // Remove italic (*text* or _text_)
-    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "$1")
-    .replace(/(?<!_)_([^_]+)_(?!_)/g, "$1")
-    // Remove inline code
-    .replace(/`([^`]+)`/g, "$1")
-    // Trim whitespace
-    .trim();
+  let cleaned = text;
+
+  // Remove headers (# to ######) - must be at start of line or entire string
+  cleaned = cleaned.replace(/^#{1,6}\s+/gm, "");
+
+  // Remove bold (**text** or __text__) - multiple passes to handle nested cases
+  for (let i = 0; i < 3; i++) {
+    cleaned = cleaned.replace(/\*\*(.+?)\*\*/g, "$1");
+    cleaned = cleaned.replace(/__(.+?)__/g, "$1");
+  }
+
+  // Remove italic (*text* or _text_) - careful not to break legitimate underscores
+  cleaned = cleaned.replace(/\*(.+?)\*/g, "$1");
+  cleaned = cleaned.replace(/(?<!\w)_(.+?)_(?!\w)/g, "$1");
+
+  // Remove inline code
+  cleaned = cleaned.replace(/`(.+?)`/g, "$1");
+
+  // Remove strikethrough
+  cleaned = cleaned.replace(/~~(.+?)~~/g, "$1");
+
+  // Remove bullet points and list markers at the start
+  cleaned = cleaned.replace(/^[\s]*[-*+]\s+/gm, "");
+  cleaned = cleaned.replace(/^[\s]*\d+\.\s+/gm, "");
+
+  // Remove blockquote markers
+  cleaned = cleaned.replace(/^>\s+/gm, "");
+
+  // Normalize whitespace and trim
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+
+  return cleaned;
 };
 
 // Approximate conversion from markdown to visible text for matching selections
@@ -348,9 +367,25 @@ export function PRDPreview({
 
     try {
       let fullResponse = "";
+
+      // Build explicit prompt with original text as reference
+      const fullPrompt = `${prompt}
+
+ORIGINAL TEXT (for reference - match this exact style):
+"${selection.text}"
+
+CRITICAL FORMATTING RULES:
+- Return ONLY plain text with NO markdown formatting whatsoever
+- Do NOT add: **bold**, _italic_, \`code\`, # headers, - bullets, or any other markdown
+- Do NOT add line breaks, bullet points, or numbered lists
+- The text should be plain prose that can be inserted directly into a paragraph
+- Match the exact same formatting style as the original text above
+
+Provide ONLY the improved text, nothing else:`;
+
       await generatePRD(
         {
-          messages: [{ role: "user", content: prompt + "\n\nProvide ONLY the improved text, without any additional explanation. IMPORTANT: Do NOT add any markdown formatting (no bold, no headers, no bullet points) unless the original text already had that formatting. Preserve the exact same text style as the original." }],
+          messages: [{ role: "user", content: fullPrompt }],
           settings: { tone: "balanced", docType: "single", hierarchy: "1-level" },
         },
         (chunk) => {
