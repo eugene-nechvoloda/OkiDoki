@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -7,8 +8,6 @@ import {
   Maximize2,
   FileText,
   Lightbulb,
-  Check,
-  X,
   Loader2,
   Send,
 } from "lucide-react";
@@ -87,82 +86,87 @@ export function TextImprovementToolbar({
     position: "fixed",
     left: clampedX - toolbarWidth / 2,
     top: Math.max(padding, position.y),
-    zIndex: 1000,
+    zIndex: 9999,
     width: toolbarWidth,
   };
 
-  // Show loading state
-  if (isProcessing) {
-    return (
-      <div
-        ref={toolbarRef}
-        data-toolbar
-        style={toolbarStyle}
-        className="bg-card border border-border rounded-xl shadow-2xl p-4 animate-in fade-in-0 zoom-in-95 duration-150"
-      >
-        <div className="flex items-center justify-center gap-3 py-2">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          <span className="text-sm font-medium">Improving your text...</span>
+  // Render via portal to document.body so position:fixed works correctly
+  const portalContent = (
+    <>
+      {/* Show loading state */}
+      {isProcessing && (
+        <div
+          ref={toolbarRef}
+          data-toolbar
+          style={toolbarStyle}
+          className="bg-card border border-border rounded-xl shadow-2xl p-4 animate-in fade-in-0 zoom-in-95 duration-150"
+        >
+          <div className="flex items-center justify-center gap-3 py-2">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <span className="text-sm font-medium">Improving your text...</span>
+          </div>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  // Main toolbar with input + quick actions
-  return (
-    <div
-      ref={toolbarRef}
-      data-toolbar
-      style={toolbarStyle}
-      className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150"
-    >
-      {/* Custom prompt input */}
-      <div className="p-3 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary shrink-0" />
-          <Input
-            ref={inputRef}
-            value={customPrompt}
-            onChange={(e) => setCustomPrompt(e.target.value)}
-            placeholder="Ask AI to edit or improve..."
-            className="h-9 text-sm border-0 bg-muted/50 focus-visible:ring-1 focus-visible:ring-primary/50"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && customPrompt.trim()) {
-                e.preventDefault();
-                handleCustomSubmit();
-              }
-              if (e.key === "Escape") {
-                e.preventDefault();
-                onReject();
-              }
-            }}
-          />
-          <Button
-            size="sm"
-            className="h-9 w-9 p-0 shrink-0 gradient-brand text-primary-foreground"
-            onClick={handleCustomSubmit}
-            disabled={!customPrompt.trim()}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
+      {/* Main toolbar with input + quick actions */}
+      {!isProcessing && (
+        <div
+          ref={toolbarRef}
+          data-toolbar
+          style={toolbarStyle}
+          className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150"
+        >
+          {/* Custom prompt input */}
+          <div className="p-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary shrink-0" />
+              <Input
+                ref={inputRef}
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                placeholder="Ask AI to edit or improve..."
+                className="h-9 text-sm border-0 bg-muted/50 focus-visible:ring-1 focus-visible:ring-primary/50"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && customPrompt.trim()) {
+                    e.preventDefault();
+                    handleCustomSubmit();
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    onReject();
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                className="h-9 w-9 p-0 shrink-0 gradient-brand text-primary-foreground"
+                onClick={handleCustomSubmit}
+                disabled={!customPrompt.trim()}
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Quick actions */}
+          <div className="p-2 flex flex-wrap gap-1">
+            {QUICK_ACTIONS.map((action) => (
+              <Button
+                key={action.label}
+                size="sm"
+                variant="ghost"
+                className="h-8 text-xs px-3 hover:bg-primary/10 hover:text-primary transition-colors"
+                onClick={() => handleQuickAction(action.prompt)}
+              >
+                <action.icon className="h-3.5 w-3.5 mr-1.5" />
+                {action.label}
+              </Button>
+            ))}
+          </div>
         </div>
-      </div>
-
-      {/* Quick actions */}
-      <div className="p-2 flex flex-wrap gap-1">
-        {QUICK_ACTIONS.map((action) => (
-          <Button
-            key={action.label}
-            size="sm"
-            variant="ghost"
-            className="h-8 text-xs px-3 hover:bg-primary/10 hover:text-primary transition-colors"
-            onClick={() => handleQuickAction(action.prompt)}
-          >
-            <action.icon className="h-3.5 w-3.5 mr-1.5" />
-            {action.label}
-          </Button>
-        ))}
-      </div>
-    </div>
+      )}
+    </>
   );
+
+  return createPortal(portalContent, document.body);
 }

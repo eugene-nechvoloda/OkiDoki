@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -600,11 +601,11 @@ export function PRDPreview({
         />
       )}
       
-      {/* Floating Confirm/Decline panel when reviewing improved text */}
-      {isReviewMode && selection.position && (
+      {/* Floating Confirm/Decline panel when reviewing improved text - rendered via portal */}
+      {isReviewMode && selection.position && createPortal(
         <div
           data-toolbar
-          className="fixed z-[1000] animate-in fade-in-0 zoom-in-95 duration-150"
+          className="fixed z-[9999] animate-in fade-in-0 zoom-in-95 duration-150"
           style={{
             left: Math.max(16, Math.min(selection.position.x - 200, window.innerWidth - 416)),
             top: Math.max(16, selection.position.y),
@@ -655,7 +656,8 @@ export function PRDPreview({
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Content */}
