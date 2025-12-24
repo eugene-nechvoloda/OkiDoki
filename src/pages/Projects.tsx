@@ -63,6 +63,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import { TextImprovementToolbar } from "@/components/prd/TextImprovementToolbar";
+import { TextImprovementConfirmPanel } from "@/components/prd/TextImprovementConfirmPanel";
 
 export default function Projects() {
   const navigate = useNavigate();
@@ -539,6 +540,17 @@ export default function Projects() {
                 onAccept={handleAcceptImproved}
                 onReject={handleRejectImproved}
               />
+
+              {regeneratedText && selectionPosition && (
+                <TextImprovementConfirmPanel
+                  position={selectionPosition}
+                  selectionTop={selectionPosition.y - 8}
+                  originalText={selectedText}
+                  improvedText={regeneratedText}
+                  onConfirm={handleAcceptImproved}
+                  onDecline={handleRejectImproved}
+                />
+              )}
 
               <div className="max-w-4xl mx-auto px-6 py-8">
                 {isEditing ? (
