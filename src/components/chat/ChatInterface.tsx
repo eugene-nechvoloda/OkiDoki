@@ -13,7 +13,7 @@ interface ChatInterfaceProps {
   messages: Message[];
   selectedTemplate?: PRDTemplate | null;
   onSelectTemplate: (template: PRDTemplate | null) => void;
-  onSendMessage: (message: string, settings: ChatSettings) => void;
+  onSendMessage: (message: string, settings: ChatSettings, files?: File[]) => void;
   isLoading: boolean;
   streamingContent?: string;
 }
@@ -55,9 +55,9 @@ export function ChatInterface({
     templateId: null,
   });
   
-  const handleSendMessage = (message: string, settings: ChatSettings) => {
+  const handleSendMessage = (message: string, settings: ChatSettings, files?: File[]) => {
     setActiveSettings(settings);
-    onSendMessage(message, settings);
+    onSendMessage(message, settings, files);
   };
   
   const hasNonDefaultSettings = 

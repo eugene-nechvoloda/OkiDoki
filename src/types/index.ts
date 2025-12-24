@@ -57,4 +57,10 @@ export interface ChatSettings {
   docType: string;
   hierarchy: string;
   templateId: string | null;
+  attachments?: Array<{
+    type: 'image';
+    name: string;
+    mimeType: string;
+    base64: string;
+  }>;
 }

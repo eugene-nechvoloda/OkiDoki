@@ -930,6 +930,12 @@ export interface GeneratePRDRequest {
   };
   chatId?: string;
   autoSave?: boolean;
+  attachments?: Array<{
+    type: 'image';
+    name: string;
+    mimeType: string;
+    base64: string;
+  }>;
 }
 
 export async function generatePRD(
