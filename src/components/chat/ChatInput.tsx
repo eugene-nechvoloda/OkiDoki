@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -122,6 +122,32 @@ export function ChatInput({
     }
   };
 
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          // Create a more descriptive filename with timestamp
+          const extension = item.type.split("/")[1] || "png";
+          const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+          const newFile = new File([file], `pasted-image-${timestamp}.${extension}`, {
+            type: file.type,
+          });
+          imageFiles.push(newFile);
+        }
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      setUploadedFiles((prev) => [...prev, ...imageFiles]);
+    }
+  }, []);
+
   const currentTone = TONES.find((t) => t.id === selectedTone);
   const currentDocType = DOCUMENT_TYPES.find((d) => d.id === selectedDocType);
   const currentHierarchy = HIERARCHY_LEVELS.find((h) => h.id === selectedHierarchy);
@@ -183,6 +209,7 @@ export function ChatInput({
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         placeholder={placeholder}
         disabled={isLoading}
         className="border-0 resize-none min-h-[80px] max-h-[200px] focus-visible:ring-0 rounded-t-2xl text-base px-4 py-4"
