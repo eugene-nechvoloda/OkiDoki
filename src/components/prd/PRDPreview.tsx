@@ -236,7 +236,7 @@ export function PRDPreview({
       let fullResponse = "";
       await generatePRD(
         {
-          messages: [{ role: "user", content: prompt + "\n\nProvide ONLY the improved text, without any additional explanation." }],
+          messages: [{ role: "user", content: prompt + "\n\nProvide ONLY the improved text, without any additional explanation. IMPORTANT: Do NOT add any markdown formatting (no bold, no headers, no bullet points) unless the original text already had that formatting. Preserve the exact same text style as the original." }],
           settings: { tone: "balanced", docType: "single", hierarchy: "1-level" },
         },
         (chunk) => {
