@@ -819,60 +819,90 @@ Provide ONLY the improved text, nothing else:`;
       
       {/* Floating Confirm/Decline panel when reviewing improved text - rendered via portal */}
       {isReviewMode && selection.position && createPortal(
-        <div
-          data-toolbar
-          className="fixed z-[9999] animate-in fade-in-0 zoom-in-95 duration-150"
-          style={{
-            left: Math.max(16, Math.min(selection.position.x - 200, window.innerWidth - 416)),
-            top: Math.max(16, selection.position.y),
-            width: 400,
-          }}
-        >
-          <div className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
-            {/* Header */}
-            <div className="px-4 py-2.5 bg-primary/5 border-b border-border flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <span className="text-sm font-medium">AI Suggestion</span>
-            </div>
-            
-            {/* Comparison */}
-            <div className="p-3 space-y-2 max-h-48 overflow-y-auto">
-              <div>
-                <span className="text-xs text-muted-foreground uppercase tracking-wide">Original</span>
-                <div className="mt-1 p-2 bg-muted/50 rounded text-sm line-through opacity-60 max-h-16 overflow-y-auto">
-                  {selection.text.length > 150 ? selection.text.slice(0, 150) + "..." : selection.text}
+        (() => {
+          // Calculate panel dimensions and position
+          const panelWidth = 400;
+          const panelHeight = 280; // Approximate max height of the panel
+          const padding = 16;
+          
+          // Horizontal position: center on selection, but keep within viewport
+          const leftPos = Math.max(
+            padding, 
+            Math.min(selection.position.x - panelWidth / 2, window.innerWidth - panelWidth - padding)
+          );
+          
+          // Vertical position: prefer below selection, but if it would overflow, position above
+          let topPos = selection.position.y;
+          const wouldOverflowBottom = topPos + panelHeight > window.innerHeight - padding;
+          
+          if (wouldOverflowBottom) {
+            // Try to position above the selection instead
+            // Find the top of the selection from the first rect
+            const selectionTop = selection.rects[0]?.top ?? selection.position.y;
+            topPos = Math.max(padding, selectionTop - panelHeight - 10);
+          }
+          
+          // Final safety clamp to ensure panel is fully visible
+          topPos = Math.max(padding, Math.min(topPos, window.innerHeight - panelHeight - padding));
+          
+          return (
+            <div
+              data-toolbar
+              className="fixed z-[9999] animate-in fade-in-0 zoom-in-95 duration-150"
+              style={{
+                left: leftPos,
+                top: topPos,
+                width: panelWidth,
+                maxHeight: window.innerHeight - padding * 2,
+              }}
+            >
+              <div className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
+                {/* Header */}
+                <div className="px-4 py-2.5 bg-primary/5 border-b border-border flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  <span className="text-sm font-medium">AI Suggestion</span>
+                </div>
+                
+                {/* Comparison */}
+                <div className="p-3 space-y-2 max-h-40 overflow-y-auto">
+                  <div>
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Original</span>
+                    <div className="mt-1 p-2 bg-muted/50 rounded text-sm line-through opacity-60 max-h-14 overflow-y-auto">
+                      {selection.text.length > 120 ? selection.text.slice(0, 120) + "..." : selection.text}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs text-primary uppercase tracking-wide font-medium">Improved</span>
+                    <div className="mt-1 p-2 bg-primary/10 border border-primary/20 rounded text-sm max-h-14 overflow-y-auto">
+                      {regeneratedText && regeneratedText.length > 120 ? regeneratedText.slice(0, 120) + "..." : regeneratedText}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Actions - always visible */}
+                <div className="px-4 py-3 bg-muted/30 border-t border-border flex items-center justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRejectImproved}
+                    className="h-8 px-3 gap-1.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Decline
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleAcceptImproved}
+                    className="h-8 px-3 gap-1.5 gradient-brand text-primary-foreground"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    Confirm
+                  </Button>
                 </div>
               </div>
-              <div>
-                <span className="text-xs text-primary uppercase tracking-wide font-medium">Improved</span>
-                <div className="mt-1 p-2 bg-primary/10 border border-primary/20 rounded text-sm max-h-16 overflow-y-auto">
-                  {regeneratedText && regeneratedText.length > 150 ? regeneratedText.slice(0, 150) + "..." : regeneratedText}
-                </div>
-              </div>
             </div>
-            
-            {/* Actions */}
-            <div className="px-4 py-3 bg-muted/30 border-t border-border flex items-center justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleRejectImproved}
-                className="h-8 px-3 gap-1.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
-              >
-                <X className="h-3.5 w-3.5" />
-                Decline
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleAcceptImproved}
-                className="h-8 px-3 gap-1.5 gradient-brand text-primary-foreground"
-              >
-                <Check className="h-3.5 w-3.5" />
-                Confirm
-              </Button>
-            </div>
-          </div>
-        </div>,
+          );
+        })(),
         document.body
       )}
 
