@@ -38,7 +38,7 @@ import { BUILT_IN_TEMPLATES } from "@/data/templates";
 import { IntegrationsQuickPanel } from "@/components/integrations/IntegrationsQuickPanel";
 
 interface ChatInputProps {
-  onSend: (message: string, settings: ChatSettings) => void;
+  onSend: (message: string, settings: ChatSettings, files?: File[]) => void;
   selectedTemplate?: PRDTemplate | null;
   onSelectTemplate: (template: PRDTemplate | null) => void;
   isLoading?: boolean;
@@ -86,13 +86,14 @@ export function ChatInput({
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
 
   const handleSubmit = () => {
-    if (input.trim() && !isLoading) {
+    if ((input.trim() || uploadedFiles.length > 0) && !isLoading) {
+      const imageFiles = uploadedFiles.filter(f => f.type.startsWith('image/'));
       onSend(input.trim(), {
         tone: selectedTone,
         docType: selectedDocType,
         hierarchy: selectedHierarchy,
         templateId: selectedTemplate?.id ?? null,
-      });
+      }, imageFiles.length > 0 ? imageFiles : undefined);
       setInput("");
       setUploadedFiles([]);
     }
