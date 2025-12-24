@@ -43,11 +43,20 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
       const rects = Array.from(range.getClientRects());
       if (rects.length === 0) return;
 
-      // Get the bottom-center of the last rect for toolbar positioning
-      const lastRect = rects[rects.length - 1];
+      // Compute a stable anchor under the whole selection (works for multi-line selections)
+      const firstRect = rects[0];
+      const bounds = rects.reduce(
+        (acc, r) => ({
+          minLeft: Math.min(acc.minLeft, r.left),
+          maxRight: Math.max(acc.maxRight, r.right),
+          maxBottom: Math.max(acc.maxBottom, r.bottom),
+        }),
+        { minLeft: firstRect.left, maxRight: firstRect.right, maxBottom: firstRect.bottom }
+      );
+
       const position = {
-        x: lastRect.left + lastRect.width / 2,
-        y: lastRect.bottom + 8,
+        x: (bounds.minLeft + bounds.maxRight) / 2,
+        y: bounds.maxBottom + 8,
       };
 
       // Calculate character offsets in the rendered text
