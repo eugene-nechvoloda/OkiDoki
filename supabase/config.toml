@@ -2,7 +2,7 @@ project_id = "mlirwabkxjvleutcehae"
 
 # Edge Functions Configuration
 [functions.generate-prd]
-verify_jwt = true
+verify_jwt = false
 
 [functions.save-chat]
 verify_jwt = true
