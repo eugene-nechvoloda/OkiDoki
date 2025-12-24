@@ -21,10 +21,23 @@ const EMPTY_STATE: SelectionState = {
 export function useTextSelection(containerRef: React.RefObject<HTMLElement | null>) {
   const [selection, setSelection] = useState<SelectionState>(EMPTY_STATE);
   const [isLocked, setIsLocked] = useState(false);
+  const showDelayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isLockedRef = useRef(false);
+
+  // Keep ref in sync with state
+  isLockedRef.current = isLocked;
+
+  // Clear any pending timer - use inline function to avoid dependency issues
+  const clearShowTimer = () => {
+    if (showDelayTimerRef.current) {
+      clearTimeout(showDelayTimerRef.current);
+      showDelayTimerRef.current = null;
+    }
+  };
 
   // Capture selection from browser
   const captureSelection = useCallback(() => {
-    if (isLocked) return;
+    if (isLockedRef.current) return;
     
     const browserSelection = window.getSelection();
     const selectedText = browserSelection?.toString().trim() || "";
@@ -75,7 +88,7 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
     } catch (e) {
       // Selection may be invalid
     }
-  }, [containerRef, isLocked]);
+  }, [containerRef]);
 
   // Lock selection (prevents updates) - call this when processing
   const lockSelection = useCallback(() => {
@@ -86,6 +99,7 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
 
   // Clear selection and unlock
   const clearSelection = useCallback(() => {
+    clearShowTimer();
     setSelection(EMPTY_STATE);
     setIsLocked(false);
   }, []);
@@ -97,28 +111,38 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
 
   // Set up event listeners
   useEffect(() => {
+    const handlePointerDown = () => {
+      // User started selecting - cancel any pending toolbar show
+      clearShowTimer();
+    };
+
     const handlePointerUp = () => {
-      setTimeout(captureSelection, 20);
+      // Wait 1 second after release to show toolbar
+      clearShowTimer();
+      showDelayTimerRef.current = setTimeout(() => {
+        captureSelection();
+      }, 500);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === "Shift" || e.key.startsWith("Arrow")) {
-        setTimeout(captureSelection, 20);
+        // Same 1 second delay for keyboard selection
+        clearShowTimer();
+        showDelayTimerRef.current = setTimeout(() => {
+          captureSelection();
+        }, 500);
       }
     };
 
-    const handleSelectionChange = () => {
-      setTimeout(captureSelection, 50);
-    };
-
+    document.addEventListener("pointerdown", handlePointerDown, true);
     document.addEventListener("pointerup", handlePointerUp, true);
     document.addEventListener("keyup", handleKeyUp, true);
-    document.addEventListener("selectionchange", handleSelectionChange);
 
     return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("pointerup", handlePointerUp, true);
       document.removeEventListener("keyup", handleKeyUp, true);
-      document.removeEventListener("selectionchange", handleSelectionChange);
+      clearShowTimer();
     };
   }, [captureSelection]);
 

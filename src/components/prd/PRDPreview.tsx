@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -50,6 +51,120 @@ import { SelectionHighlight } from "./SelectionHighlight";
 import { exportToPDF } from "@/utils/pdfExport";
 import { useTextSelection } from "@/hooks/useTextSelection";
 import { cn } from "@/lib/utils";
+
+// Strip markdown formatting from text to preserve original style
+const stripMarkdownFormatting = (text: string): string => {
+  return text
+    // Remove headers (# to ######)
+    .replace(/^#{1,6}\s+/gm, "")
+    // Remove bold (**text** or __text__)
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    // Remove italic (*text* or _text_)
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "$1")
+    .replace(/(?<!_)_([^_]+)_(?!_)/g, "$1")
+    // Remove inline code
+    .replace(/`([^`]+)`/g, "$1")
+    // Trim whitespace
+    .trim();
+};
+
+// Approximate conversion from markdown to visible text for matching selections
+const approxMarkdownToVisibleText = (md: string): string => {
+  return md
+    .replace(/\r\n/g, "\n")
+    // Images: keep alt text
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, "$1")
+    // Links: keep label text
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
+    // Blockquotes / lists / headings markers
+    .replace(/^>\s?/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/^#{1,6}\s+/gm, "")
+    // Inline formatting
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "$1")
+    .replace(/(?<!_)_([^_]+)_(?!_)/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/`([^`]+)`/g, "$1");
+};
+
+// Check if a position is inside an unclosed formatting block
+const isInsideFormattingBlock = (
+  markdown: string,
+  position: number
+): { isInside: boolean; marker: string; startPos: number } => {
+  const beforeText = markdown.slice(0, position);
+  
+  // Check for bold markers (**)
+  const boldMatches = beforeText.match(/\*\*/g) || [];
+  if (boldMatches.length % 2 === 1) {
+    // Odd number of ** means we're inside a bold block
+    const lastBoldStart = beforeText.lastIndexOf("**");
+    return { isInside: true, marker: "**", startPos: lastBoldStart };
+  }
+  
+  // Check for italic markers (single *)
+  // Need to be careful not to confuse with bold
+  const cleanedForItalic = beforeText.replace(/\*\*/g, "");
+  const italicMatches = cleanedForItalic.match(/\*/g) || [];
+  if (italicMatches.length % 2 === 1) {
+    const lastItalicStart = beforeText.lastIndexOf("*");
+    // Make sure it's not part of **
+    if (lastItalicStart > 0 && beforeText[lastItalicStart - 1] !== "*") {
+      return { isInside: true, marker: "*", startPos: lastItalicStart };
+    }
+  }
+  
+  return { isInside: false, marker: "", startPos: -1 };
+};
+
+const findBestSelectionMatchIndex = (
+  markdown: string,
+  selectedText: string,
+  selectionVisibleStart: number
+): { index: number; isInsideFormatting: boolean; formatMarker: string; formatStartPos: number } => {
+  if (!selectedText) return { index: -1, isInsideFormatting: false, formatMarker: "", formatStartPos: -1 };
+
+  let bestIndex = -1;
+  let bestScore = Number.POSITIVE_INFINITY;
+  let bestIsInsideFormatting = false;
+  let bestFormatMarker = "";
+  let bestFormatStartPos = -1;
+
+  let fromIndex = 0;
+  while (fromIndex <= markdown.length) {
+    const idx = markdown.indexOf(selectedText, fromIndex);
+    if (idx === -1) break;
+
+    const visibleBefore = approxMarkdownToVisibleText(markdown.slice(0, idx)).length;
+    const score = Math.abs(visibleBefore - selectionVisibleStart);
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestIndex = idx;
+      
+      // Check if the match position is inside a formatting block
+      const formatInfo = isInsideFormattingBlock(markdown, idx);
+      bestIsInsideFormatting = formatInfo.isInside;
+      bestFormatMarker = formatInfo.marker;
+      bestFormatStartPos = formatInfo.startPos;
+      
+      if (score === 0) break;
+    }
+
+    fromIndex = idx + selectedText.length;
+  }
+
+  return { 
+    index: bestIndex, 
+    isInsideFormatting: bestIsInsideFormatting, 
+    formatMarker: bestFormatMarker,
+    formatStartPos: bestFormatStartPos
+  };
+};
 
 type IntegrationProvider = keyof typeof INTEGRATION_CONFIG;
 
@@ -235,7 +350,7 @@ export function PRDPreview({
       let fullResponse = "";
       await generatePRD(
         {
-          messages: [{ role: "user", content: prompt + "\n\nProvide ONLY the improved text, without any additional explanation." }],
+          messages: [{ role: "user", content: prompt + "\n\nProvide ONLY the improved text, without any additional explanation. IMPORTANT: Do NOT add any markdown formatting (no bold, no headers, no bullet points) unless the original text already had that formatting. Preserve the exact same text style as the original." }],
           settings: { tone: "balanced", docType: "single", hierarchy: "1-level" },
         },
         (chunk) => {
@@ -258,10 +373,69 @@ export function PRDPreview({
   const handleAcceptImproved = () => {
     if (!selection.range || !regeneratedText) return;
 
-    const newContent =
-      currentContent.slice(0, selection.range.start) +
-      regeneratedText +
-      currentContent.slice(selection.range.end);
+    // Strip any markdown formatting from the model output
+    const cleanedText = stripMarkdownFormatting(regeneratedText);
+
+    // Replace by matching the selected visible text inside the markdown source.
+    // (The selection offsets are based on rendered text, not raw markdown.)
+    const match = findBestSelectionMatchIndex(
+      currentContent,
+      selection.text,
+      selection.range.start
+    );
+
+    if (match.index === -1) {
+      toast.error("Couldn't apply changes: selected text not found in the document.");
+      setRegeneratedText(null);
+      clearSelection();
+      return;
+    }
+
+    let newContent: string;
+    
+    if (match.isInsideFormatting && match.formatMarker) {
+      // The selected text is inside a formatting block (e.g., bold)
+      // We need to close the formatting before the replacement and reopen after
+      // Check if there's content after the selection that's still inside the formatting
+      const afterSelectionPos = match.index + selection.text.length;
+      const afterText = currentContent.slice(afterSelectionPos);
+      const closingMarkerPos = afterText.indexOf(match.formatMarker);
+      
+      if (closingMarkerPos !== -1) {
+        // There's a closing marker - check if there's meaningful text before it
+        const textBeforeClosing = afterText.slice(0, closingMarkerPos).trim();
+        
+        if (textBeforeClosing.length > 0) {
+          // There's text after our selection that should stay formatted
+          // Close format before our text, insert plain text, reopen format for remaining text
+          newContent =
+            currentContent.slice(0, match.index) +
+            match.formatMarker + // Close the formatting
+            cleanedText +
+            match.formatMarker + // Reopen the formatting for text after
+            currentContent.slice(afterSelectionPos);
+        } else {
+          // No meaningful text after - just close formatting before our text
+          newContent =
+            currentContent.slice(0, match.index) +
+            match.formatMarker + // Close the formatting
+            cleanedText +
+            currentContent.slice(afterSelectionPos);
+        }
+      } else {
+        // No closing marker found - just insert the text
+        newContent =
+          currentContent.slice(0, match.index) +
+          cleanedText +
+          currentContent.slice(afterSelectionPos);
+      }
+    } else {
+      // Normal case - text is not inside formatting
+      newContent =
+        currentContent.slice(0, match.index) +
+        cleanedText +
+        currentContent.slice(match.index + selection.text.length);
+    }
 
     const newVersion = { content: newContent, timestamp: Date.now() };
     setVersions(prev => [...prev.slice(0, currentVersionIndex + 1), newVersion]);
@@ -294,17 +468,25 @@ export function PRDPreview({
     }
   };
 
-  // Handle clicks outside selection
-  const handlePointerDownOutside = (e: React.PointerEvent) => {
-    if (isLocked) return; // Don't clear while reviewing
+  // Handle clicks outside selection - use document listener since toolbar is portaled
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (isLocked || isRegenerating) return; // Don't clear while reviewing or processing
+      if (!hasSelection) return;
 
-    const target = e.target as HTMLElement;
-    if (target.closest("[data-toolbar]")) return;
-    if (contentRef.current?.contains(target)) return;
+      const target = e.target as HTMLElement;
+      // Ignore clicks on toolbar
+      if (target.closest("[data-toolbar]")) return;
+      // Ignore clicks inside content area (user might be making new selection)
+      if (contentRef.current?.contains(target)) return;
 
-    clearSelection();
-    window.getSelection()?.removeAllRanges();
-  };
+      clearSelection();
+      window.getSelection()?.removeAllRanges();
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isLocked, isRegenerating, hasSelection, clearSelection]);
 
   // Custom components for markdown rendering
   const components: Components = {
@@ -600,11 +782,11 @@ export function PRDPreview({
         />
       )}
       
-      {/* Floating Confirm/Decline panel when reviewing improved text */}
-      {isReviewMode && selection.position && (
+      {/* Floating Confirm/Decline panel when reviewing improved text - rendered via portal */}
+      {isReviewMode && selection.position && createPortal(
         <div
           data-toolbar
-          className="fixed z-[1000] animate-in fade-in-0 zoom-in-95 duration-150"
+          className="fixed z-[9999] animate-in fade-in-0 zoom-in-95 duration-150"
           style={{
             left: Math.max(16, Math.min(selection.position.x - 200, window.innerWidth - 416)),
             top: Math.max(16, selection.position.y),
@@ -655,11 +837,12 @@ export function PRDPreview({
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Content */}
-      <ScrollArea className="flex-1" onPointerDownCapture={handlePointerDownOutside}>
+      <ScrollArea className="flex-1">
         <div ref={scrollAreaRef} className="relative">
           {/* Selection highlight overlay */}
           {hasSelection && (
