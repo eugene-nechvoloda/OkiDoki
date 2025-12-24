@@ -22,19 +22,22 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
   const [selection, setSelection] = useState<SelectionState>(EMPTY_STATE);
   const [isLocked, setIsLocked] = useState(false);
   const showDelayTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const isSelectingRef = useRef(false);
+  const isLockedRef = useRef(false);
 
-  // Clear any pending timer
-  const clearShowTimer = useCallback(() => {
+  // Keep ref in sync with state
+  isLockedRef.current = isLocked;
+
+  // Clear any pending timer - use inline function to avoid dependency issues
+  const clearShowTimer = () => {
     if (showDelayTimerRef.current) {
       clearTimeout(showDelayTimerRef.current);
       showDelayTimerRef.current = null;
     }
-  }, []);
+  };
 
   // Capture selection from browser
   const captureSelection = useCallback(() => {
-    if (isLocked) return;
+    if (isLockedRef.current) return;
     
     const browserSelection = window.getSelection();
     const selectedText = browserSelection?.toString().trim() || "";
@@ -85,7 +88,7 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
     } catch (e) {
       // Selection may be invalid
     }
-  }, [containerRef, isLocked]);
+  }, [containerRef]);
 
   // Lock selection (prevents updates) - call this when processing
   const lockSelection = useCallback(() => {
@@ -99,7 +102,7 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
     clearShowTimer();
     setSelection(EMPTY_STATE);
     setIsLocked(false);
-  }, [clearShowTimer]);
+  }, []);
 
   // Update position only (for scroll handling)
   const updatePosition = useCallback((newPosition: { x: number; y: number }) => {
@@ -110,12 +113,10 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
   useEffect(() => {
     const handlePointerDown = () => {
       // User started selecting - cancel any pending toolbar show
-      isSelectingRef.current = true;
       clearShowTimer();
     };
 
     const handlePointerUp = () => {
-      isSelectingRef.current = false;
       // Wait 1 second after release to show toolbar
       clearShowTimer();
       showDelayTimerRef.current = setTimeout(() => {
@@ -143,7 +144,7 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
       document.removeEventListener("keyup", handleKeyUp, true);
       clearShowTimer();
     };
-  }, [captureSelection, clearShowTimer]);
+  }, [captureSelection]);
 
   return {
     selection,
