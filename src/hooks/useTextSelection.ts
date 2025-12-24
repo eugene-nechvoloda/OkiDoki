@@ -121,7 +121,7 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
       clearShowTimer();
       showDelayTimerRef.current = setTimeout(() => {
         captureSelection();
-      }, 1000);
+      }, 500);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -130,7 +130,7 @@ export function useTextSelection(containerRef: React.RefObject<HTMLElement | nul
         clearShowTimer();
         showDelayTimerRef.current = setTimeout(() => {
           captureSelection();
-        }, 1000);
+        }, 500);
       }
     };
 
