@@ -295,17 +295,25 @@ export function PRDPreview({
     }
   };
 
-  // Handle clicks outside selection
-  const handlePointerDownOutside = (e: React.PointerEvent) => {
-    if (isLocked) return; // Don't clear while reviewing
+  // Handle clicks outside selection - use document listener since toolbar is portaled
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (isLocked || isRegenerating) return; // Don't clear while reviewing or processing
+      if (!hasSelection) return;
 
-    const target = e.target as HTMLElement;
-    if (target.closest("[data-toolbar]")) return;
-    if (contentRef.current?.contains(target)) return;
+      const target = e.target as HTMLElement;
+      // Ignore clicks on toolbar
+      if (target.closest("[data-toolbar]")) return;
+      // Ignore clicks inside content area (user might be making new selection)
+      if (contentRef.current?.contains(target)) return;
 
-    clearSelection();
-    window.getSelection()?.removeAllRanges();
-  };
+      clearSelection();
+      window.getSelection()?.removeAllRanges();
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isLocked, isRegenerating, hasSelection, clearSelection]);
 
   // Custom components for markdown rendering
   const components: Components = {
@@ -661,7 +669,7 @@ export function PRDPreview({
       )}
 
       {/* Content */}
-      <ScrollArea className="flex-1" onPointerDownCapture={handlePointerDownOutside}>
+      <ScrollArea className="flex-1">
         <div ref={scrollAreaRef} className="relative">
           {/* Selection highlight overlay */}
           {hasSelection && (
