@@ -56,17 +56,69 @@ import { cn } from "@/lib/utils";
 const stripMarkdownFormatting = (text: string): string => {
   return text
     // Remove headers (# to ######)
-    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^#{1,6}\s+/gm, "")
     // Remove bold (**text** or __text__)
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
     // Remove italic (*text* or _text_)
-    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '$1')
-    .replace(/(?<!_)_([^_]+)_(?!_)/g, '$1')
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "$1")
+    .replace(/(?<!_)_([^_]+)_(?!_)/g, "$1")
     // Remove inline code
-    .replace(/`([^`]+)`/g, '$1')
+    .replace(/`([^`]+)`/g, "$1")
     // Trim whitespace
     .trim();
+};
+
+// Approximate conversion from markdown to visible text for matching selections
+const approxMarkdownToVisibleText = (md: string): string => {
+  return md
+    .replace(/\r\n/g, "\n")
+    // Images: keep alt text
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, "$1")
+    // Links: keep label text
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
+    // Blockquotes / lists / headings markers
+    .replace(/^>\s?/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/^#{1,6}\s+/gm, "")
+    // Inline formatting
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "$1")
+    .replace(/(?<!_)_([^_]+)_(?!_)/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/`([^`]+)`/g, "$1");
+};
+
+const findBestSelectionMatchIndex = (
+  markdown: string,
+  selectedText: string,
+  selectionVisibleStart: number
+): number => {
+  if (!selectedText) return -1;
+
+  let bestIndex = -1;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  let fromIndex = 0;
+  while (fromIndex <= markdown.length) {
+    const idx = markdown.indexOf(selectedText, fromIndex);
+    if (idx === -1) break;
+
+    const visibleBefore = approxMarkdownToVisibleText(markdown.slice(0, idx)).length;
+    const score = Math.abs(visibleBefore - selectionVisibleStart);
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestIndex = idx;
+      if (score === 0) break;
+    }
+
+    fromIndex = idx + selectedText.length;
+  }
+
+  return bestIndex;
 };
 
 type IntegrationProvider = keyof typeof INTEGRATION_CONFIG;
@@ -276,13 +328,28 @@ export function PRDPreview({
   const handleAcceptImproved = () => {
     if (!selection.range || !regeneratedText) return;
 
-    // Strip any markdown formatting to preserve original text style
+    // Strip any markdown formatting from the model output
     const cleanedText = stripMarkdownFormatting(regeneratedText);
 
+    // Replace by matching the selected visible text inside the markdown source.
+    // (The selection offsets are based on rendered text, not raw markdown.)
+    const matchIndex = findBestSelectionMatchIndex(
+      currentContent,
+      selection.text,
+      selection.range.start
+    );
+
+    if (matchIndex === -1) {
+      toast.error("Couldn't apply changes: selected text not found in the document.");
+      setRegeneratedText(null);
+      clearSelection();
+      return;
+    }
+
     const newContent =
-      currentContent.slice(0, selection.range.start) +
+      currentContent.slice(0, matchIndex) +
       cleanedText +
-      currentContent.slice(selection.range.end);
+      currentContent.slice(matchIndex + selection.text.length);
 
     const newVersion = { content: newContent, timestamp: Date.now() };
     setVersions(prev => [...prev.slice(0, currentVersionIndex + 1), newVersion]);
