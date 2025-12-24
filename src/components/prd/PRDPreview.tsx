@@ -52,6 +52,23 @@ import { exportToPDF } from "@/utils/pdfExport";
 import { useTextSelection } from "@/hooks/useTextSelection";
 import { cn } from "@/lib/utils";
 
+// Strip markdown formatting from text to preserve original style
+const stripMarkdownFormatting = (text: string): string => {
+  return text
+    // Remove headers (# to ######)
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove bold (**text** or __text__)
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    // Remove italic (*text* or _text_)
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '$1')
+    .replace(/(?<!_)_([^_]+)_(?!_)/g, '$1')
+    // Remove inline code
+    .replace(/`([^`]+)`/g, '$1')
+    // Trim whitespace
+    .trim();
+};
+
 type IntegrationProvider = keyof typeof INTEGRATION_CONFIG;
 
 interface PRDPreviewProps {
@@ -259,9 +276,12 @@ export function PRDPreview({
   const handleAcceptImproved = () => {
     if (!selection.range || !regeneratedText) return;
 
+    // Strip any markdown formatting to preserve original text style
+    const cleanedText = stripMarkdownFormatting(regeneratedText);
+
     const newContent =
       currentContent.slice(0, selection.range.start) +
-      regeneratedText +
+      cleanedText +
       currentContent.slice(selection.range.end);
 
     const newVersion = { content: newContent, timestamp: Date.now() };
