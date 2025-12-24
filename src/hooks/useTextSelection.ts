@@ -1,0 +1,124 @@
+import { useState, useCallback, useRef, useEffect } from "react";
+
+export interface SelectionState {
+  text: string;
+  range: { start: number; end: number } | null;
+  position: { x: number; y: number } | null;
+  rects: DOMRect[];
+}
+
+const EMPTY_STATE: SelectionState = {
+  text: "",
+  range: null,
+  position: null,
+  rects: [],
+};
+
+/**
+ * Hook for managing text selection with persistent highlighting.
+ * The selection state persists even when browser selection is cleared.
+ */
+export function useTextSelection(containerRef: React.RefObject<HTMLElement | null>) {
+  const [selection, setSelection] = useState<SelectionState>(EMPTY_STATE);
+  const [isLocked, setIsLocked] = useState(false);
+
+  // Capture selection from browser
+  const captureSelection = useCallback(() => {
+    if (isLocked) return;
+    
+    const browserSelection = window.getSelection();
+    const selectedText = browserSelection?.toString().trim() || "";
+
+    if (selectedText.length < 3 || !containerRef.current) {
+      return;
+    }
+
+    try {
+      const range = browserSelection?.getRangeAt(0);
+      if (!range || !containerRef.current.contains(range.commonAncestorContainer)) {
+        return;
+      }
+
+      // Get all client rects for the selection (handles multi-line)
+      const rects = Array.from(range.getClientRects());
+      if (rects.length === 0) return;
+
+      // Get the bottom-center of the last rect for toolbar positioning
+      const lastRect = rects[rects.length - 1];
+      const position = {
+        x: lastRect.left + lastRect.width / 2,
+        y: lastRect.bottom + 8,
+      };
+
+      // Calculate character offsets in the rendered text
+      const preSelectionRange = range.cloneRange();
+      preSelectionRange.selectNodeContents(containerRef.current);
+      preSelectionRange.setEnd(range.startContainer, range.startOffset);
+      const start = preSelectionRange.toString().length;
+      const end = start + selectedText.length;
+
+      setSelection({
+        text: selectedText,
+        range: { start, end },
+        position,
+        rects: rects.map(r => r.toJSON() as DOMRect),
+      });
+    } catch (e) {
+      // Selection may be invalid
+    }
+  }, [containerRef, isLocked]);
+
+  // Lock selection (prevents updates) - call this when processing
+  const lockSelection = useCallback(() => {
+    setIsLocked(true);
+    // Clear browser selection but keep our state
+    window.getSelection()?.removeAllRanges();
+  }, []);
+
+  // Clear selection and unlock
+  const clearSelection = useCallback(() => {
+    setSelection(EMPTY_STATE);
+    setIsLocked(false);
+  }, []);
+
+  // Update position only (for scroll handling)
+  const updatePosition = useCallback((newPosition: { x: number; y: number }) => {
+    setSelection(prev => ({ ...prev, position: newPosition }));
+  }, []);
+
+  // Set up event listeners
+  useEffect(() => {
+    const handlePointerUp = () => {
+      setTimeout(captureSelection, 20);
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift" || e.key.startsWith("Arrow")) {
+        setTimeout(captureSelection, 20);
+      }
+    };
+
+    const handleSelectionChange = () => {
+      setTimeout(captureSelection, 50);
+    };
+
+    document.addEventListener("pointerup", handlePointerUp, true);
+    document.addEventListener("keyup", handleKeyUp, true);
+    document.addEventListener("selectionchange", handleSelectionChange);
+
+    return () => {
+      document.removeEventListener("pointerup", handlePointerUp, true);
+      document.removeEventListener("keyup", handleKeyUp, true);
+      document.removeEventListener("selectionchange", handleSelectionChange);
+    };
+  }, [captureSelection]);
+
+  return {
+    selection,
+    isLocked,
+    lockSelection,
+    clearSelection,
+    updatePosition,
+    hasSelection: selection.text.length > 0,
+  };
+}
