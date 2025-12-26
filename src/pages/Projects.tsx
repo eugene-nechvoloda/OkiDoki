@@ -86,6 +86,7 @@ export default function Projects() {
   const [originalSelectedText, setOriginalSelectedText] = useState("");
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
   const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
+  const [selectionRects, setSelectionRects] = useState<DOMRect[]>([]);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regeneratedText, setRegeneratedText] = useState<string | null>(null);
   const toolbarDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -222,6 +223,7 @@ export default function Projects() {
     setOriginalSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
+    setSelectionRects([]);
     setIsRegenerating(false);
     setRegeneratedText(null);
   };
@@ -329,10 +331,11 @@ export default function Projects() {
     setOriginalSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
+    setSelectionRects([]);
   };
 
   // Delayed toolbar show function
-  const showToolbarDelayed = useCallback((position: { x: number; y: number }, text: string) => {
+  const showToolbarDelayed = useCallback((position: { x: number; y: number }, text: string, rects: DOMRect[]) => {
     if (toolbarDelayRef.current) {
       clearTimeout(toolbarDelayRef.current);
     }
@@ -340,6 +343,7 @@ export default function Projects() {
       setSelectedText(text);
       setOriginalSelectedText(text);
       setSelectionPosition(position);
+      setSelectionRects(rects);
     }, 500);
   }, []);
 
@@ -359,7 +363,10 @@ export default function Projects() {
               y: rect.bottom + 8,
             };
 
-            showToolbarDelayed(position, selected);
+            // Capture all rects for multi-line selections
+            const rects = Array.from(range.getClientRects());
+
+            showToolbarDelayed(position, selected, rects);
           }
         } catch (e) {
           // Selection might be invalid
@@ -457,6 +464,7 @@ export default function Projects() {
     setOriginalSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
+    setSelectionRects([]);
     setRegeneratedText(null);
     toast.success("Changes applied");
     window.getSelection()?.removeAllRanges();
@@ -468,6 +476,7 @@ export default function Projects() {
     setOriginalSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
+    setSelectionRects([]);
     window.getSelection()?.removeAllRanges();
   };
 
@@ -544,7 +553,25 @@ export default function Projects() {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto" onPointerDownCapture={handlePointerDownOutside}>
+            <div className="flex-1 min-h-0 overflow-y-auto relative" onPointerDownCapture={handlePointerDownOutside}>
+              {/* Persistent highlight overlay */}
+              {selectionRects.length > 0 && selectedText && (
+                <div className="pointer-events-none fixed inset-0 z-[9990]">
+                  {selectionRects.map((rect, index) => (
+                    <div
+                      key={index}
+                      className="absolute bg-primary/25 rounded-sm"
+                      style={{
+                        left: rect.left,
+                        top: rect.top,
+                        width: rect.width,
+                        height: rect.height,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
               <TextImprovementToolbar
                 selectedText={selectedText}
                 position={selectionPosition}
