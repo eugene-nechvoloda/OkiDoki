@@ -554,18 +554,38 @@ export default function Projects() {
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto relative" onPointerDownCapture={handlePointerDownOutside}>
-              {/* Persistent highlight overlay */}
-              {selectionRects.length > 0 && selectedText && (
+              {/* Persistent highlight overlay - orange for selection, green for improved text preview */}
+              {selectionRects.length > 0 && selectedText && !regeneratedText && (
                 <div className="pointer-events-none fixed inset-0 z-[9990]">
                   {selectionRects.map((rect, index) => (
                     <div
                       key={index}
-                      className="absolute bg-primary/25 rounded-sm"
+                      className="absolute rounded-sm"
                       style={{
                         left: rect.left,
                         top: rect.top,
                         width: rect.width,
                         height: rect.height,
+                        backgroundColor: 'rgba(251, 191, 147, 0.5)', // Orange/peach highlight
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Green highlight for improved text preview */}
+              {selectionRects.length > 0 && regeneratedText && (
+                <div className="pointer-events-none fixed inset-0 z-[9990]">
+                  {selectionRects.map((rect, index) => (
+                    <div
+                      key={index}
+                      className="absolute rounded-sm"
+                      style={{
+                        left: rect.left,
+                        top: rect.top,
+                        width: rect.width,
+                        height: rect.height,
+                        backgroundColor: 'rgba(134, 239, 172, 0.4)', // Light green highlight
                       }}
                     />
                   ))}
