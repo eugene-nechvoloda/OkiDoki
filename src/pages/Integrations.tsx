@@ -31,6 +31,7 @@ import {
 } from "@/services/api";
 import type { Integration } from "@/types/database";
 import { IntegrationSetupDialog } from "@/components/integrations/IntegrationSetupDialog";
+import { LinearSetupDialog } from "@/components/integrations/LinearSetupDialog";
 import { IntegrationLogo } from "@/components/integrations/IntegrationLogos";
 import {
   Collapsible,
@@ -53,6 +54,7 @@ export default function Integrations() {
     null
   );
   const [showSetupDialog, setShowSetupDialog] = useState(false);
+  const [showLinearSetupDialog, setShowLinearSetupDialog] = useState(false);
   const [expandedIntegrations, setExpandedIntegrations] = useState<Set<string>>(
     new Set()
   );
@@ -75,8 +77,12 @@ export default function Integrations() {
   };
 
   const handleConnect = (provider: IntegrationProvider) => {
-    setSetupProvider(provider);
-    setShowSetupDialog(true);
+    if (provider === "linear") {
+      setShowLinearSetupDialog(true);
+    } else {
+      setSetupProvider(provider);
+      setShowSetupDialog(true);
+    }
   };
 
   const handleDisconnect = async (integrationId: string, providerName: string) => {
@@ -503,6 +509,13 @@ export default function Integrations() {
           provider={setupProvider}
           open={showSetupDialog}
           onOpenChange={setShowSetupDialog}
+          onSuccess={loadIntegrations}
+        />
+
+        {/* Linear Setup Dialog */}
+        <LinearSetupDialog
+          open={showLinearSetupDialog}
+          onOpenChange={setShowLinearSetupDialog}
           onSuccess={loadIntegrations}
         />
       </div>
