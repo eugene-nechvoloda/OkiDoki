@@ -171,6 +171,7 @@ export async function createLinearIssue(
     projectId?: string;
     priority?: number;
     labels?: string[];
+    parentId?: string;
   }
 ): Promise<LinearIssue> {
   const mutation = `
@@ -204,6 +205,10 @@ export async function createLinearIssue(
 
   if (params.labels && params.labels.length > 0) {
     input.labelIds = params.labels;
+  }
+
+  if (params.parentId) {
+    input.parentId = params.parentId;
   }
 
   const response = await fetch("https://api.linear.app/graphql", {

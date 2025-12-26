@@ -311,16 +311,50 @@ export function PRDPreview({
 
   const handleExportToIntegration = async (provider: IntegrationProvider) => {
     if (!currentContent) return;
-    
+
     const integration = connectedIntegrations.find(i => i.provider === provider);
     const config = INTEGRATION_CONFIG[provider];
-    
+
     setIsExporting(true);
     setExportingProvider(provider);
-    
+
     try {
       toast.info(`Exporting to ${config.name}...`);
-      
+
+      // Use intelligent hierarchy export for Linear
+      if (provider === 'linear') {
+        const { data, error } = await supabase.functions.invoke("export-to-linear-hierarchy", {
+          body: {
+            title: title || "PRD Document",
+            content: currentContent,
+            teamId: integration?.config_json?.team_id,
+            projectId: integration?.config_json?.project_id,
+          },
+        });
+
+        if (error) {
+          console.error(`Export to ${config.name} error:`, error);
+          toast.error(error.message || `Failed to export to ${config.name}`);
+          return;
+        }
+
+        if (data?.error || data?.errors) {
+          const errorMsg = data?.error || (data?.errors?.length > 0 ? data.errors.join(', ') : 'Unknown error');
+          toast.error(errorMsg);
+          return;
+        }
+
+        if (data?.success) {
+          const msg = data.message || `Created ${data.totalIssues} issues in ${config.name}`;
+          toast.success(msg);
+          if (data.rootIssue?.url) {
+            window.open(data.rootIssue.url, "_blank");
+          }
+        }
+        return;
+      }
+
+      // Use generic export for other integrations
       const { data, error } = await supabase.functions.invoke("export-to-integration", {
         body: {
           provider,
