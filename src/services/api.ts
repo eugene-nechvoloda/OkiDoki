@@ -1117,7 +1117,7 @@ export const INTEGRATION_CONFIG = {
   linear: {
     name: 'Linear',
     icon: '🔷',
-    description: 'Create Linear issues from PRDs',
+    description: 'AI-powered hierarchical issue creation via Linear MCP',
     category: 'export',
     scopes: ['read', 'write'],
     authUrl: 'https://linear.app/oauth/authorize',

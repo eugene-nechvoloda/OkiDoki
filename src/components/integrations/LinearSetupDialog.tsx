@@ -101,6 +101,15 @@ export function LinearSetupDialog({
         return;
       }
 
+      // Test MCP connection
+      toast.info("Testing Linear MCP connection...");
+      const mcpValid = await testLinearMCPConnection(apiKey);
+
+      if (!mcpValid) {
+        toast.error("Linear API key is valid, but MCP connection failed. Export may not work.");
+        // Continue anyway, as the issue might be temporary
+      }
+
       // Fetch workspace info and teams
       const [workspace, teamList] = await Promise.all([
         fetchLinearWorkspace(apiKey),
@@ -119,7 +128,7 @@ export function LinearSetupDialog({
       setSelectedTeamId(teamList[0].id);
 
       setStep("team-selection");
-      toast.success("API key validated successfully");
+      toast.success(mcpValid ? "Connected with Linear MCP ✓" : "API key validated (MCP unavailable)");
     } catch (error) {
       console.error("Failed to validate Linear API key:", error);
       toast.error(
@@ -127,6 +136,41 @@ export function LinearSetupDialog({
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const testLinearMCPConnection = async (apiKey: string): Promise<boolean> => {
+    try {
+      const response = await fetch("https://mcp.linear.app/mcp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json, text/event-stream",
+          "Authorization": `Bearer ${apiKey}`,
+          "MCP-Protocol-Version": "2025-06-18",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-06-18",
+            capabilities: { tools: {} },
+            clientInfo: { name: "okidoki", version: "1.0.0" },
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        console.error("MCP connection failed:", response.status);
+        return false;
+      }
+
+      const result = await response.json();
+      return !result.error;
+    } catch (error) {
+      console.error("MCP connection test failed:", error);
+      return false;
     }
   };
 
@@ -152,6 +196,9 @@ export function LinearSetupDialog({
         return;
       }
 
+      // Test MCP one more time before saving
+      const mcpConnected = await testLinearMCPConnection(apiKey);
+
       // Store integration in database
       const { error } = await supabase.from("integrations").insert({
         user_id: user.id,
@@ -165,6 +212,8 @@ export function LinearSetupDialog({
           project_id: selectedProjectId || null,
           project_name:
             projects.find((p) => p.id === selectedProjectId)?.name || null,
+          mcp_enabled: mcpConnected,
+          mcp_server: "https://mcp.linear.app/mcp",
         },
         status: "connected",
       });
@@ -174,7 +223,11 @@ export function LinearSetupDialog({
         throw new Error("Failed to save integration");
       }
 
-      toast.success(`Successfully connected to ${workspaceName}`);
+      toast.success(
+        mcpConnected
+          ? `Successfully connected to ${workspaceName} with MCP ✓`
+          : `Connected to ${workspaceName} (MCP unavailable)`
+      );
 
       onOpenChange(false);
       onSuccess();
@@ -201,7 +254,7 @@ export function LinearSetupDialog({
             Connect Linear
           </DialogTitle>
           <DialogDescription>
-            Export your PRDs as issues in Linear
+            Export PRDs as intelligent issue hierarchies using Linear's MCP (Model Context Protocol)
           </DialogDescription>
         </DialogHeader>
 
@@ -266,6 +319,15 @@ export function LinearSetupDialog({
                       </li>
                     ))}
                   </ul>
+                </div>
+
+                <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg">
+                  <h4 className="font-semibold mb-2 text-primary">🤖 AI-Powered MCP Integration</h4>
+                  <p className="text-sm text-muted-foreground">
+                    OkiDoki uses Linear's official MCP server to intelligently analyze your PRDs
+                    and automatically create hierarchical issue structures (epics → features → tasks).
+                    No manual breakdown needed!
+                  </p>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">
