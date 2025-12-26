@@ -294,22 +294,30 @@ export async function saveDocument(
     // Guest mode: store locally only
     if (!authed) {
       const now = new Date().toISOString();
-      const documentId = data.documentId || crypto.randomUUID();
-
       const documents = readGuestJson<PRDDocument[]>(GUEST_STORAGE_KEYS.documents, []);
-      const existing = documents.find((d) => d.id === documentId);
+      
+      // Check for existing document with same title in same project
+      let existingDoc = data.documentId 
+        ? documents.find((d) => d.id === data.documentId)
+        : documents.find((d) => 
+            d.title === data.title && 
+            d.project_id === (data.projectId || null) &&
+            d.owner_id === userId
+          );
+
+      const documentId = existingDoc?.id || data.documentId || crypto.randomUUID();
 
       const document: PRDDocument = {
         id: documentId,
         owner_id: userId,
         title: data.title,
-        content_markdown: data.contentMarkdown ?? existing?.content_markdown ?? null,
-        content_json: data.contentJson ?? existing?.content_json ?? null,
-        status: (data.status ?? existing?.status ?? 'draft') as any,
-        visibility: (data.visibility ?? existing?.visibility ?? 'private') as any,
-        project_id: data.projectId ?? existing?.project_id ?? null,
-        template_id: data.templateId ?? existing?.template_id ?? null,
-        created_at: existing?.created_at ?? now,
+        content_markdown: data.contentMarkdown ?? existingDoc?.content_markdown ?? null,
+        content_json: data.contentJson ?? existingDoc?.content_json ?? null,
+        status: (data.status ?? existingDoc?.status ?? 'draft') as any,
+        visibility: (data.visibility ?? existingDoc?.visibility ?? 'private') as any,
+        project_id: data.projectId ?? existingDoc?.project_id ?? null,
+        template_id: data.templateId ?? existingDoc?.template_id ?? null,
+        created_at: existingDoc?.created_at ?? now,
         updated_at: now,
       };
 
@@ -321,8 +329,8 @@ export async function saveDocument(
       return { document };
     }
 
+    // If documentId is provided, update that specific document
     if (data.documentId) {
-      // Update existing document
       const { data: document, error } = await supabase
         .from('prd_documents')
         .update({
@@ -336,7 +344,7 @@ export async function saveDocument(
           updated_at: new Date().toISOString(),
         })
         .eq('id', data.documentId)
-        .eq('owner_id', userId) // Ensure user owns this document
+        .eq('owner_id', userId)
         .select()
         .single();
 
@@ -349,7 +357,47 @@ export async function saveDocument(
       return { document };
     }
 
-    // Create new document - use owner_id (correct column name)
+    // Check for existing document with same title in same project
+    const { data: existingDocs } = await supabase
+      .from('prd_documents')
+      .select('id')
+      .eq('owner_id', userId)
+      .eq('title', data.title)
+      .eq('project_id', data.projectId || '')
+      .limit(1);
+
+    // If document with same title exists in same project, update it
+    if (existingDocs && existingDocs.length > 0) {
+      const existingId = existingDocs[0].id;
+      console.log('📄 Found existing document with same title, updating:', existingId);
+
+      const { data: document, error } = await supabase
+        .from('prd_documents')
+        .update({
+          title: data.title,
+          content_markdown: data.contentMarkdown,
+          content_json: data.contentJson,
+          status: data.status || 'draft',
+          visibility: data.visibility || 'private',
+          project_id: data.projectId,
+          template_id: data.templateId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingId)
+        .eq('owner_id', userId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Update document error:', error);
+        throw error;
+      }
+
+      console.log('✅ Document updated (same title):', document);
+      return { document };
+    }
+
+    // Create new document
     const { data: document, error } = await supabase
       .from('prd_documents')
       .insert({
@@ -930,6 +978,12 @@ export interface GeneratePRDRequest {
   };
   chatId?: string;
   autoSave?: boolean;
+  attachments?: Array<{
+    type: 'image';
+    name: string;
+    mimeType: string;
+    base64: string;
+  }>;
 }
 
 export async function generatePRD(

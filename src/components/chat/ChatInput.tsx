@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -38,7 +38,7 @@ import { BUILT_IN_TEMPLATES } from "@/data/templates";
 import { IntegrationsQuickPanel } from "@/components/integrations/IntegrationsQuickPanel";
 
 interface ChatInputProps {
-  onSend: (message: string, settings: ChatSettings) => void;
+  onSend: (message: string, settings: ChatSettings, files?: File[]) => void;
   selectedTemplate?: PRDTemplate | null;
   onSelectTemplate: (template: PRDTemplate | null) => void;
   isLoading?: boolean;
@@ -86,13 +86,14 @@ export function ChatInput({
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
 
   const handleSubmit = () => {
-    if (input.trim() && !isLoading) {
+    if ((input.trim() || uploadedFiles.length > 0) && !isLoading) {
+      const imageFiles = uploadedFiles.filter(f => f.type.startsWith('image/'));
       onSend(input.trim(), {
         tone: selectedTone,
         docType: selectedDocType,
         hierarchy: selectedHierarchy,
         templateId: selectedTemplate?.id ?? null,
-      });
+      }, imageFiles.length > 0 ? imageFiles : undefined);
       setInput("");
       setUploadedFiles([]);
     }
@@ -121,6 +122,32 @@ export function ChatInput({
       handleSubmit();
     }
   };
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          // Create a more descriptive filename with timestamp
+          const extension = item.type.split("/")[1] || "png";
+          const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+          const newFile = new File([file], `pasted-image-${timestamp}.${extension}`, {
+            type: file.type,
+          });
+          imageFiles.push(newFile);
+        }
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      setUploadedFiles((prev) => [...prev, ...imageFiles]);
+    }
+  }, []);
 
   const currentTone = TONES.find((t) => t.id === selectedTone);
   const currentDocType = DOCUMENT_TYPES.find((d) => d.id === selectedDocType);
@@ -183,6 +210,7 @@ export function ChatInput({
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         placeholder={placeholder}
         disabled={isLoading}
         className="border-0 resize-none min-h-[80px] max-h-[200px] focus-visible:ring-0 rounded-t-2xl text-base px-4 py-4"

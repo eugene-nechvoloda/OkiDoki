@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import { TextImprovementToolbar } from "@/components/prd/TextImprovementToolbar";
+import { TextImprovementConfirmPanel } from "@/components/prd/TextImprovementConfirmPanel";
 
 export default function Projects() {
   const navigate = useNavigate();
@@ -82,10 +83,13 @@ export default function Projects() {
   // Inline selection editing state (view mode)
   const docContentRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState("");
+  const [originalSelectedText, setOriginalSelectedText] = useState("");
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
   const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
+  const [selectionRects, setSelectionRects] = useState<DOMRect[]>([]);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regeneratedText, setRegeneratedText] = useState<string | null>(null);
+  const toolbarDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Project creation/edit state
   const [showProjectDialog, setShowProjectDialog] = useState(false);
@@ -216,8 +220,10 @@ export default function Projects() {
     setEditContent(doc.content_markdown || "");
     setIsEditing(false);
     setSelectedText("");
+    setOriginalSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
+    setSelectionRects([]);
     setIsRegenerating(false);
     setRegeneratedText(null);
   };
@@ -322,9 +328,24 @@ export default function Projects() {
   const clearSelectionState = () => {
     if (regeneratedText) return;
     setSelectedText("");
+    setOriginalSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
+    setSelectionRects([]);
   };
+
+  // Delayed toolbar show function
+  const showToolbarDelayed = useCallback((position: { x: number; y: number }, text: string, rects: DOMRect[]) => {
+    if (toolbarDelayRef.current) {
+      clearTimeout(toolbarDelayRef.current);
+    }
+    toolbarDelayRef.current = setTimeout(() => {
+      setSelectedText(text);
+      setOriginalSelectedText(text);
+      setSelectionPosition(position);
+      setSelectionRects(rects);
+    }, 500);
+  }, []);
 
   // Use effect to add global pointer listeners for better selection detection
   useEffect(() => {
@@ -336,20 +357,16 @@ export default function Projects() {
         try {
           const range = selection?.getRangeAt(0);
           if (range && docContentRef.current.contains(range.commonAncestorContainer)) {
-            setSelectedText(selected);
-
             const rect = range.getBoundingClientRect();
-            setSelectionPosition({
+            const position = {
               x: rect.left + rect.width / 2,
               y: rect.bottom + 8,
-            });
+            };
 
-            const preSelectionRange = range.cloneRange();
-            preSelectionRange.selectNodeContents(docContentRef.current);
-            preSelectionRange.setEnd(range.startContainer, range.startOffset);
-            const start = preSelectionRange.toString().length;
-            const end = start + selected.length;
-            setSelectionRange({ start, end });
+            // Capture all rects for multi-line selections
+            const rects = Array.from(range.getClientRects());
+
+            showToolbarDelayed(position, selected, rects);
           }
         } catch (e) {
           // Selection might be invalid
@@ -367,20 +384,16 @@ export default function Projects() {
       }
     };
 
-    // Also listen to selectionchange for more reliable detection
-    const handleSelectionChange = () => {
-      setTimeout(checkSelection, 50);
-    };
-
     document.addEventListener("pointerup", handleGlobalPointerUp, true);
     document.addEventListener("keyup", handleKeyUp, true);
-    document.addEventListener("selectionchange", handleSelectionChange);
     return () => {
       document.removeEventListener("pointerup", handleGlobalPointerUp, true);
       document.removeEventListener("keyup", handleKeyUp, true);
-      document.removeEventListener("selectionchange", handleSelectionChange);
+      if (toolbarDelayRef.current) {
+        clearTimeout(toolbarDelayRef.current);
+      }
     };
-  }, [regeneratedText, selectedDoc]);
+  }, [regeneratedText, selectedDoc, showToolbarDelayed]);
 
   // Clear selection when the user clicks outside the document content/toolbar
   const handlePointerDownOutside = (e: React.PointerEvent) => {
@@ -431,18 +444,27 @@ export default function Projects() {
   };
 
   const handleAcceptImproved = () => {
-    if (!selectionRange || !regeneratedText) return;
+    if (!originalSelectedText || !regeneratedText) return;
 
-    const newContent =
-      editContent.slice(0, selectionRange.start) +
-      regeneratedText +
-      editContent.slice(selectionRange.end);
-
-    setEditContent(newContent);
+    // Find the selected text in the markdown and replace it
+    // Use simple string replacement - find first occurrence of the original text
+    const index = editContent.indexOf(originalSelectedText);
+    if (index !== -1) {
+      const newContent =
+        editContent.slice(0, index) +
+        regeneratedText +
+        editContent.slice(index + originalSelectedText.length);
+      setEditContent(newContent);
+    } else {
+      // Fallback: try case-insensitive or partial match
+      toast.error("Could not find the selected text in the document");
+    }
 
     setSelectedText("");
+    setOriginalSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
+    setSelectionRects([]);
     setRegeneratedText(null);
     toast.success("Changes applied");
     window.getSelection()?.removeAllRanges();
@@ -451,8 +473,10 @@ export default function Projects() {
   const handleRejectImproved = () => {
     setRegeneratedText(null);
     setSelectedText("");
+    setOriginalSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
+    setSelectionRects([]);
     window.getSelection()?.removeAllRanges();
   };
 
@@ -529,7 +553,45 @@ export default function Projects() {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto" onPointerDownCapture={handlePointerDownOutside}>
+            <div className="flex-1 min-h-0 overflow-y-auto relative" onPointerDownCapture={handlePointerDownOutside}>
+              {/* Persistent highlight overlay - orange for selection, green for improved text preview */}
+              {selectionRects.length > 0 && selectedText && !regeneratedText && (
+                <div className="pointer-events-none fixed inset-0 z-[9990]">
+                  {selectionRects.map((rect, index) => (
+                    <div
+                      key={index}
+                      className="absolute rounded-sm"
+                      style={{
+                        left: rect.left,
+                        top: rect.top,
+                        width: rect.width,
+                        height: rect.height,
+                        backgroundColor: 'rgba(251, 191, 147, 0.5)', // Orange/peach highlight
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Green highlight for improved text preview */}
+              {selectionRects.length > 0 && regeneratedText && (
+                <div className="pointer-events-none fixed inset-0 z-[9990]">
+                  {selectionRects.map((rect, index) => (
+                    <div
+                      key={index}
+                      className="absolute rounded-sm"
+                      style={{
+                        left: rect.left,
+                        top: rect.top,
+                        width: rect.width,
+                        height: rect.height,
+                        backgroundColor: 'rgba(134, 239, 172, 0.4)', // Light green highlight
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
               <TextImprovementToolbar
                 selectedText={selectedText}
                 position={selectionPosition}
@@ -539,6 +601,17 @@ export default function Projects() {
                 onAccept={handleAcceptImproved}
                 onReject={handleRejectImproved}
               />
+
+              {regeneratedText && selectionPosition && (
+                <TextImprovementConfirmPanel
+                  position={selectionPosition}
+                  selectionTop={selectionPosition.y - 8}
+                  originalText={selectedText}
+                  improvedText={regeneratedText}
+                  onConfirm={handleAcceptImproved}
+                  onDecline={handleRejectImproved}
+                />
+              )}
 
               <div className="max-w-4xl mx-auto px-6 py-8">
                 {isEditing ? (

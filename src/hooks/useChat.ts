@@ -144,8 +144,8 @@ export function useChat() {
   }, []);
 
   const sendMessage = useCallback(
-    async (content: string, settings: ChatSettings) => {
-      console.log('📨 sendMessage called');
+    async (content: string, settings: ChatSettings, files?: File[]) => {
+      console.log('📨 sendMessage called with files:', files?.length || 0);
       console.log('📨 User at sendMessage time:', user);
       console.log('📨 User ID:', user?.id);
 
@@ -188,6 +188,32 @@ export function useChat() {
          : null;
 
       try {
+        // Convert files to base64 for the API
+        let attachments: Array<{ type: 'image'; name: string; mimeType: string; base64: string }> = [];
+        if (files && files.length > 0) {
+          attachments = await Promise.all(
+            files.map(async (file) => {
+              const base64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const result = reader.result as string;
+                  // Extract base64 data without the data URL prefix
+                  const base64Data = result.split(',')[1];
+                  resolve(base64Data);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+              });
+              return {
+                type: 'image' as const,
+                name: file.name,
+                mimeType: file.type,
+                base64,
+              };
+            })
+          );
+        }
+
         let fullContent = "";
 
         // Use the new generatePRD API
@@ -203,6 +229,7 @@ export function useChat() {
               docType: settings.docType,
               hierarchy: settings.hierarchy,
             },
+            attachments: attachments.length > 0 ? attachments : undefined,
           },
           (chunk: string) => {
             fullContent += chunk;

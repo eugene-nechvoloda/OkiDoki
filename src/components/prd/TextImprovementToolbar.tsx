@@ -39,6 +39,7 @@ export function TextImprovementToolbar({
   onReject,
 }: TextImprovementToolbarProps) {
   const [customPrompt, setCustomPrompt] = useState("");
+  const [toolbarHeight, setToolbarHeight] = useState<number>(0);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -56,6 +57,30 @@ export function TextImprovementToolbar({
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [position, isProcessing, improvedText]);
+
+  // Measure height so we can keep the toolbar fully inside the viewport
+  useEffect(() => {
+    if (!position) return;
+
+    const el = toolbarRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      setToolbarHeight(el.getBoundingClientRect().height);
+    };
+
+    measure();
+
+    const ro =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+
+    window.addEventListener("resize", measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [position, isProcessing]);
 
   if (!position || !selectedText) return null;
   
@@ -75,17 +100,24 @@ export function TextImprovementToolbar({
   // Calculate position to keep toolbar in viewport
   const toolbarWidth = 380;
   const padding = 16;
-  
+
   // Clamp horizontal position to keep toolbar fully visible
   const clampedX = Math.max(
-    padding + toolbarWidth / 2, 
+    padding + toolbarWidth / 2,
     Math.min(position.x, window.innerWidth - padding - toolbarWidth / 2)
   );
-  
+
+  // Clamp vertical position so the toolbar never goes below the viewport bottom
+  const estimatedHeight = toolbarHeight || (isProcessing ? 72 : 132);
+  const clampedTop = Math.max(
+    padding,
+    Math.min(position.y, window.innerHeight - padding - estimatedHeight)
+  );
+
   const toolbarStyle: React.CSSProperties = {
     position: "fixed",
     left: clampedX - toolbarWidth / 2,
-    top: Math.max(padding, position.y),
+    top: clampedTop,
     zIndex: 9999,
     width: toolbarWidth,
   };

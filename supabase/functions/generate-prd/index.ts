@@ -17,6 +17,13 @@ interface Template {
   sections: string[];
 }
 
+interface ImageAttachment {
+  type: 'image';
+  name: string;
+  mimeType: string;
+  base64: string;
+}
+
 function getToneInstructions(tone: string): string {
   switch (tone) {
     case "detailed":
@@ -78,7 +85,12 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, template, settings } = await req.json();
+    const { messages, template, settings, attachments } = await req.json() as {
+      messages: Array<{ role: string; content: string }>;
+      template?: Template;
+      settings?: Settings;
+      attachments?: ImageAttachment[];
+    };
     
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) {
@@ -90,13 +102,14 @@ serve(async (req) => {
     const docType = settings?.docType || "single";
     const hierarchy = settings?.hierarchy || "1-level";
 
-    console.log("Generating PRD with settings:", { tone, docType, hierarchy, template: template?.name });
+    console.log("Generating PRD with settings:", { tone, docType, hierarchy, template: template?.name, hasAttachments: !!attachments?.length });
 
     const systemPrompt = `You are the Okidoki PRD Agent. Your purpose is to:
 - Generate high-quality PRDs from short text, rough thoughts, or descriptions.
 - Support PRD templates and let the user pick or specify sections inline via chat.
 - Enable block-level or full-document editing.
 - Enforce English-only content.
+- IMPORTANT: If the user shares images (screenshots, whiteboard photos, diagrams), analyze them carefully and extract all relevant information to generate a comprehensive PRD.
 
 ## Technical Configuration
 - Temperature: 0.35 (0.3–0.5 target range)
@@ -125,6 +138,7 @@ Sections to include: ${template.sections?.join(", ")}` : `No specific template s
 - Parse inputs in 2 passes (initial extraction, refinement)
 - Align extracted content to the chosen template or auto-detected format
 - Ask 1 clarifying question when needed if something is unclear
+- When processing images: extract text, identify structure, understand diagrams/flows
 
 ## Anti-Hallucination Protocol
 - Never fabricate facts. If information is missing, ask a targeted question.
@@ -148,10 +162,48 @@ Before drafting a PRD, ask the user these clarifying questions if they haven't p
 
 Keep responses conversational but professional. Be concise and actionable.`;
 
-    const anthropicMessages = messages.map((m: { role: string; content: string }) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    // Build messages for Anthropic, handling multimodal content
+    const anthropicMessages = messages.map((m: { role: string; content: string }, index: number) => {
+      // For the last user message, include any attachments
+      if (m.role === "user" && index === messages.length - 1 && attachments && attachments.length > 0) {
+        const contentParts: Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }> = [];
+        
+        // Add images first
+        for (const attachment of attachments) {
+          contentParts.push({
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: attachment.mimeType,
+              data: attachment.base64,
+            },
+          });
+        }
+        
+        // Add text content
+        if (m.content) {
+          contentParts.push({
+            type: "text",
+            text: m.content || "Please analyze this image and help me create a PRD based on what you see.",
+          });
+        } else {
+          contentParts.push({
+            type: "text",
+            text: "Please analyze this image and help me create a PRD based on what you see.",
+          });
+        }
+        
+        return {
+          role: m.role,
+          content: contentParts,
+        };
+      }
+      
+      return {
+        role: m.role,
+        content: m.content,
+      };
+    });
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

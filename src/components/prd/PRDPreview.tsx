@@ -47,6 +47,7 @@ import type { Components } from "react-markdown";
 import { generatePRD, INTEGRATION_CONFIG } from "@/services/api";
 import type { Project, Integration } from "@/types/database";
 import { TextImprovementToolbar } from "./TextImprovementToolbar";
+import { TextImprovementConfirmPanel } from "./TextImprovementConfirmPanel";
 import { SelectionHighlight } from "./SelectionHighlight";
 import { exportToPDF } from "@/utils/pdfExport";
 import { useTextSelection } from "@/hooks/useTextSelection";
@@ -54,19 +55,38 @@ import { cn } from "@/lib/utils";
 
 // Strip markdown formatting from text to preserve original style
 const stripMarkdownFormatting = (text: string): string => {
-  return text
-    // Remove headers (# to ######)
-    .replace(/^#{1,6}\s+/gm, "")
-    // Remove bold (**text** or __text__)
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/__([^_]+)__/g, "$1")
-    // Remove italic (*text* or _text_)
-    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "$1")
-    .replace(/(?<!_)_([^_]+)_(?!_)/g, "$1")
-    // Remove inline code
-    .replace(/`([^`]+)`/g, "$1")
-    // Trim whitespace
-    .trim();
+  let cleaned = text;
+
+  // Remove headers (# to ######) - must be at start of line or entire string
+  cleaned = cleaned.replace(/^#{1,6}\s+/gm, "");
+
+  // Remove bold (**text** or __text__) - multiple passes to handle nested cases
+  for (let i = 0; i < 3; i++) {
+    cleaned = cleaned.replace(/\*\*(.+?)\*\*/g, "$1");
+    cleaned = cleaned.replace(/__(.+?)__/g, "$1");
+  }
+
+  // Remove italic (*text* or _text_) - careful not to break legitimate underscores
+  cleaned = cleaned.replace(/\*(.+?)\*/g, "$1");
+  cleaned = cleaned.replace(/(?<!\w)_(.+?)_(?!\w)/g, "$1");
+
+  // Remove inline code
+  cleaned = cleaned.replace(/`(.+?)`/g, "$1");
+
+  // Remove strikethrough
+  cleaned = cleaned.replace(/~~(.+?)~~/g, "$1");
+
+  // Remove bullet points and list markers at the start
+  cleaned = cleaned.replace(/^[\s]*[-*+]\s+/gm, "");
+  cleaned = cleaned.replace(/^[\s]*\d+\.\s+/gm, "");
+
+  // Remove blockquote markers
+  cleaned = cleaned.replace(/^>\s+/gm, "");
+
+  // Normalize whitespace and trim
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+
+  return cleaned;
 };
 
 // Approximate conversion from markdown to visible text for matching selections
@@ -348,9 +368,25 @@ export function PRDPreview({
 
     try {
       let fullResponse = "";
+
+      // Build explicit prompt with original text as reference
+      const fullPrompt = `${prompt}
+
+ORIGINAL TEXT (for reference - match this exact style):
+"${selection.text}"
+
+CRITICAL FORMATTING RULES:
+- Return ONLY plain text with NO markdown formatting whatsoever
+- Do NOT add: **bold**, _italic_, \`code\`, # headers, - bullets, or any other markdown
+- Do NOT add line breaks, bullet points, or numbered lists
+- The text should be plain prose that can be inserted directly into a paragraph
+- Match the exact same formatting style as the original text above
+
+Provide ONLY the improved text, nothing else:`;
+
       await generatePRD(
         {
-          messages: [{ role: "user", content: prompt + "\n\nProvide ONLY the improved text, without any additional explanation. IMPORTANT: Do NOT add any markdown formatting (no bold, no headers, no bullet points) unless the original text already had that formatting. Preserve the exact same text style as the original." }],
+          messages: [{ role: "user", content: fullPrompt }],
           settings: { tone: "balanced", docType: "single", hierarchy: "1-level" },
         },
         (chunk) => {
@@ -783,63 +819,18 @@ export function PRDPreview({
       )}
       
       {/* Floating Confirm/Decline panel when reviewing improved text - rendered via portal */}
-      {isReviewMode && selection.position && createPortal(
-        <div
-          data-toolbar
-          className="fixed z-[9999] animate-in fade-in-0 zoom-in-95 duration-150"
-          style={{
-            left: Math.max(16, Math.min(selection.position.x - 200, window.innerWidth - 416)),
-            top: Math.max(16, selection.position.y),
-            width: 400,
-          }}
-        >
-          <div className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
-            {/* Header */}
-            <div className="px-4 py-2.5 bg-primary/5 border-b border-border flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <span className="text-sm font-medium">AI Suggestion</span>
-            </div>
-            
-            {/* Comparison */}
-            <div className="p-3 space-y-2 max-h-48 overflow-y-auto">
-              <div>
-                <span className="text-xs text-muted-foreground uppercase tracking-wide">Original</span>
-                <div className="mt-1 p-2 bg-muted/50 rounded text-sm line-through opacity-60 max-h-16 overflow-y-auto">
-                  {selection.text.length > 150 ? selection.text.slice(0, 150) + "..." : selection.text}
-                </div>
-              </div>
-              <div>
-                <span className="text-xs text-primary uppercase tracking-wide font-medium">Improved</span>
-                <div className="mt-1 p-2 bg-primary/10 border border-primary/20 rounded text-sm max-h-16 overflow-y-auto">
-                  {regeneratedText && regeneratedText.length > 150 ? regeneratedText.slice(0, 150) + "..." : regeneratedText}
-                </div>
-              </div>
-            </div>
-            
-            {/* Actions */}
-            <div className="px-4 py-3 bg-muted/30 border-t border-border flex items-center justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleRejectImproved}
-                className="h-8 px-3 gap-1.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
-              >
-                <X className="h-3.5 w-3.5" />
-                Decline
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleAcceptImproved}
-                className="h-8 px-3 gap-1.5 gradient-brand text-primary-foreground"
-              >
-                <Check className="h-3.5 w-3.5" />
-                Confirm
-              </Button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      {isReviewMode && selection.position &&
+        createPortal(
+          <TextImprovementConfirmPanel
+            position={selection.position}
+            selectionTop={selection.rects[0]?.top}
+            originalText={selection.text}
+            improvedText={regeneratedText}
+            onConfirm={handleAcceptImproved}
+            onDecline={handleRejectImproved}
+          />,
+          document.body
+        )}
 
       {/* Content */}
       <ScrollArea className="flex-1">
