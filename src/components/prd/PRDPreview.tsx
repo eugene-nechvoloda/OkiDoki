@@ -321,9 +321,9 @@ export function PRDPreview({
     try {
       toast.info(`Exporting to ${config.name}...`);
 
-      // Use intelligent hierarchy export for Linear
+      // Use MCP-powered intelligent export for Linear
       if (provider === 'linear') {
-        const { data, error } = await supabase.functions.invoke("export-to-linear-hierarchy", {
+        const { data, error } = await supabase.functions.invoke("export-to-linear-mcp", {
           body: {
             title: title || "PRD Document",
             content: currentContent,
@@ -341,12 +341,23 @@ export function PRDPreview({
         if (data?.error || data?.errors) {
           const errorMsg = data?.error || (data?.errors?.length > 0 ? data.errors.join(', ') : 'Unknown error');
           toast.error(errorMsg);
+
+          // Show agent log if available
+          if (data?.agentLog && data.agentLog.length > 0) {
+            console.log("Linear MCP Export Log:", data.agentLog.join('\n'));
+          }
           return;
         }
 
-        if (data?.success) {
-          const msg = data.message || `Created ${data.totalIssues} issues in ${config.name}`;
+        if (data?.success || data?.createdIssues?.length > 0) {
+          const msg = `Created ${data.totalIssues || data.createdIssues.length} issues in ${config.name}`;
           toast.success(msg);
+
+          // Show agent log in console
+          if (data?.agentLog && data.agentLog.length > 0) {
+            console.log("Linear MCP Export Log:", data.agentLog.join('\n'));
+          }
+
           if (data.rootIssue?.url) {
             window.open(data.rootIssue.url, "_blank");
           }
