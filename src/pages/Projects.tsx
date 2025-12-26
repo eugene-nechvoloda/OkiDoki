@@ -83,6 +83,7 @@ export default function Projects() {
   // Inline selection editing state (view mode)
   const docContentRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState("");
+  const [originalSelectedText, setOriginalSelectedText] = useState("");
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
   const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -218,6 +219,7 @@ export default function Projects() {
     setEditContent(doc.content_markdown || "");
     setIsEditing(false);
     setSelectedText("");
+    setOriginalSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
     setIsRegenerating(false);
@@ -324,19 +326,20 @@ export default function Projects() {
   const clearSelectionState = () => {
     if (regeneratedText) return;
     setSelectedText("");
+    setOriginalSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
   };
 
   // Delayed toolbar show function
-  const showToolbarDelayed = useCallback((position: { x: number; y: number }, text: string, range: { start: number; end: number }) => {
+  const showToolbarDelayed = useCallback((position: { x: number; y: number }, text: string) => {
     if (toolbarDelayRef.current) {
       clearTimeout(toolbarDelayRef.current);
     }
     toolbarDelayRef.current = setTimeout(() => {
       setSelectedText(text);
+      setOriginalSelectedText(text);
       setSelectionPosition(position);
-      setSelectionRange(range);
     }, 500);
   }, []);
 
@@ -356,13 +359,7 @@ export default function Projects() {
               y: rect.bottom + 8,
             };
 
-            const preSelectionRange = range.cloneRange();
-            preSelectionRange.selectNodeContents(docContentRef.current);
-            preSelectionRange.setEnd(range.startContainer, range.startOffset);
-            const start = preSelectionRange.toString().length;
-            const end = start + selected.length;
-
-            showToolbarDelayed(position, selected, { start, end });
+            showToolbarDelayed(position, selected);
           }
         } catch (e) {
           // Selection might be invalid
@@ -440,16 +437,24 @@ export default function Projects() {
   };
 
   const handleAcceptImproved = () => {
-    if (!selectionRange || !regeneratedText) return;
+    if (!originalSelectedText || !regeneratedText) return;
 
-    const newContent =
-      editContent.slice(0, selectionRange.start) +
-      regeneratedText +
-      editContent.slice(selectionRange.end);
-
-    setEditContent(newContent);
+    // Find the selected text in the markdown and replace it
+    // Use simple string replacement - find first occurrence of the original text
+    const index = editContent.indexOf(originalSelectedText);
+    if (index !== -1) {
+      const newContent =
+        editContent.slice(0, index) +
+        regeneratedText +
+        editContent.slice(index + originalSelectedText.length);
+      setEditContent(newContent);
+    } else {
+      // Fallback: try case-insensitive or partial match
+      toast.error("Could not find the selected text in the document");
+    }
 
     setSelectedText("");
+    setOriginalSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
     setRegeneratedText(null);
@@ -460,6 +465,7 @@ export default function Projects() {
   const handleRejectImproved = () => {
     setRegeneratedText(null);
     setSelectedText("");
+    setOriginalSelectedText("");
     setSelectionRange(null);
     setSelectionPosition(null);
     window.getSelection()?.removeAllRanges();
