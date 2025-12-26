@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -87,6 +87,7 @@ export default function Projects() {
   const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regeneratedText, setRegeneratedText] = useState<string | null>(null);
+  const toolbarDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Project creation/edit state
   const [showProjectDialog, setShowProjectDialog] = useState(false);
@@ -327,6 +328,18 @@ export default function Projects() {
     setSelectionPosition(null);
   };
 
+  // Delayed toolbar show function
+  const showToolbarDelayed = useCallback((position: { x: number; y: number }, text: string, range: { start: number; end: number }) => {
+    if (toolbarDelayRef.current) {
+      clearTimeout(toolbarDelayRef.current);
+    }
+    toolbarDelayRef.current = setTimeout(() => {
+      setSelectedText(text);
+      setSelectionPosition(position);
+      setSelectionRange(range);
+    }, 500);
+  }, []);
+
   // Use effect to add global pointer listeners for better selection detection
   useEffect(() => {
     const checkSelection = () => {
@@ -337,20 +350,19 @@ export default function Projects() {
         try {
           const range = selection?.getRangeAt(0);
           if (range && docContentRef.current.contains(range.commonAncestorContainer)) {
-            setSelectedText(selected);
-
             const rect = range.getBoundingClientRect();
-            setSelectionPosition({
+            const position = {
               x: rect.left + rect.width / 2,
               y: rect.bottom + 8,
-            });
+            };
 
             const preSelectionRange = range.cloneRange();
             preSelectionRange.selectNodeContents(docContentRef.current);
             preSelectionRange.setEnd(range.startContainer, range.startOffset);
             const start = preSelectionRange.toString().length;
             const end = start + selected.length;
-            setSelectionRange({ start, end });
+
+            showToolbarDelayed(position, selected, { start, end });
           }
         } catch (e) {
           // Selection might be invalid
@@ -368,20 +380,16 @@ export default function Projects() {
       }
     };
 
-    // Also listen to selectionchange for more reliable detection
-    const handleSelectionChange = () => {
-      setTimeout(checkSelection, 50);
-    };
-
     document.addEventListener("pointerup", handleGlobalPointerUp, true);
     document.addEventListener("keyup", handleKeyUp, true);
-    document.addEventListener("selectionchange", handleSelectionChange);
     return () => {
       document.removeEventListener("pointerup", handleGlobalPointerUp, true);
       document.removeEventListener("keyup", handleKeyUp, true);
-      document.removeEventListener("selectionchange", handleSelectionChange);
+      if (toolbarDelayRef.current) {
+        clearTimeout(toolbarDelayRef.current);
+      }
     };
-  }, [regeneratedText, selectedDoc]);
+  }, [regeneratedText, selectedDoc, showToolbarDelayed]);
 
   // Clear selection when the user clicks outside the document content/toolbar
   const handlePointerDownOutside = (e: React.PointerEvent) => {
