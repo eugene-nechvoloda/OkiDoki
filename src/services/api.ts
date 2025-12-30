@@ -1070,32 +1070,156 @@ export interface UpdateIntegrationRequest {
   isActive?: boolean;
 }
 
+const GUEST_INTEGRATIONS_KEY = "okidoki_integrations";
+
 export async function getIntegrations(): Promise<GetIntegrationsResponse> {
-  // TODO: Implement when integrations table is created
-  console.warn('getIntegrations: integrations table not available yet');
-  return { integrations: [] };
+  const authed = await isAuthenticated();
+  const userId = await getCurrentUserId();
+
+  // Guest mode: read from localStorage
+  if (!authed) {
+    const guestIntegrations = readGuestJson<Integration[]>(GUEST_INTEGRATIONS_KEY, []);
+    return { integrations: guestIntegrations };
+  }
+
+  // Authenticated mode: read from database
+  const { data, error } = await supabase
+    .from('integrations')
+    .select('*')
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Failed to fetch integrations:', error);
+    throw error;
+  }
+
+  return { integrations: data || [] };
 }
 
 export async function connectIntegration(
   data: ConnectIntegrationRequest
 ): Promise<{ integration: Integration }> {
-  // TODO: Implement when integrations table is created
-  console.warn('connectIntegration: integrations table not available yet');
-  throw new Error('Integrations feature not available yet. Database tables need to be created.');
+  const authed = await isAuthenticated();
+  const userId = await getCurrentUserId();
+  const now = new Date().toISOString();
+
+  const integrationData: Integration = {
+    id: crypto.randomUUID(),
+    user_id: userId,
+    provider: data.provider,
+    config_json: data.config || {},
+    status: 'connected',
+    created_at: now,
+    updated_at: now,
+  };
+
+  // Guest mode: store in localStorage
+  if (!authed) {
+    const guestIntegrations = readGuestJson<Integration[]>(GUEST_INTEGRATIONS_KEY, []);
+    
+    // Check if provider already exists - update instead of add
+    const existingIndex = guestIntegrations.findIndex(i => i.provider === data.provider);
+    
+    if (existingIndex >= 0) {
+      integrationData.id = guestIntegrations[existingIndex].id;
+      integrationData.created_at = guestIntegrations[existingIndex].created_at;
+      guestIntegrations[existingIndex] = integrationData;
+    } else {
+      guestIntegrations.push(integrationData);
+    }
+
+    writeGuestJson(GUEST_INTEGRATIONS_KEY, guestIntegrations);
+    return { integration: integrationData };
+  }
+
+  // Authenticated mode: store in database
+  const { data: integration, error } = await supabase
+    .from('integrations')
+    .insert({
+      user_id: userId,
+      provider: data.provider,
+      config_json: data.config || {},
+      status: 'connected',
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Failed to save integration:', error);
+    throw error;
+  }
+
+  return { integration };
 }
 
 export async function disconnectIntegration(integrationId: string): Promise<void> {
-  // TODO: Implement when integrations table is created
-  console.warn('disconnectIntegration: integrations table not available yet');
-  throw new Error('Integrations feature not available yet. Database tables need to be created.');
+  const authed = await isAuthenticated();
+
+  // Guest mode: remove from localStorage
+  if (!authed) {
+    const guestIntegrations = readGuestJson<Integration[]>(GUEST_INTEGRATIONS_KEY, []);
+    const filtered = guestIntegrations.filter(i => i.id !== integrationId);
+    writeGuestJson(GUEST_INTEGRATIONS_KEY, filtered);
+    return;
+  }
+
+  // Authenticated mode: delete from database
+  const { error } = await supabase
+    .from('integrations')
+    .delete()
+    .eq('id', integrationId);
+
+  if (error) {
+    console.error('Failed to disconnect integration:', error);
+    throw error;
+  }
 }
 
 export async function updateIntegration(
   data: UpdateIntegrationRequest
 ): Promise<{ integration: Integration }> {
-  // TODO: Implement when integrations table is created
-  console.warn('updateIntegration: integrations table not available yet');
-  throw new Error('Integrations feature not available yet. Database tables need to be created.');
+  const authed = await isAuthenticated();
+  const now = new Date().toISOString();
+
+  // Guest mode: update in localStorage
+  if (!authed) {
+    const guestIntegrations = readGuestJson<Integration[]>(GUEST_INTEGRATIONS_KEY, []);
+    const index = guestIntegrations.findIndex(i => i.id === data.integrationId);
+
+    if (index < 0) {
+      throw new Error('Integration not found');
+    }
+
+    const updated: Integration = {
+      ...guestIntegrations[index],
+      config_json: data.config ?? guestIntegrations[index].config_json,
+      status: data.isActive === false ? 'disconnected' : guestIntegrations[index].status,
+      updated_at: now,
+    };
+
+    guestIntegrations[index] = updated;
+    writeGuestJson(GUEST_INTEGRATIONS_KEY, guestIntegrations);
+    return { integration: updated };
+  }
+
+  // Authenticated mode: update in database
+  const { data: integration, error } = await supabase
+    .from('integrations')
+    .update({
+      config_json: data.config,
+      status: data.isActive === false ? 'disconnected' : 'connected',
+      updated_at: now,
+    })
+    .eq('id', data.integrationId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Failed to update integration:', error);
+    throw error;
+  }
+
+  return { integration };
 }
 
 // OAuth configuration for each integration
