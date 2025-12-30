@@ -240,17 +240,33 @@ export function PRDPreview({
   const [exportingProvider, setExportingProvider] = useState<IntegrationProvider | null>(null);
   const [connectedIntegrations, setConnectedIntegrations] = useState<Integration[]>([]);
 
-  // Load connected integrations
+  // Load connected integrations from both guest mode and authenticated mode
   useEffect(() => {
     const loadIntegrations = async () => {
       try {
-        const { data, error } = await supabase
-          .from('integrations')
-          .select('*')
-          .eq('status', 'connected');
+        // First try to load from Supabase (authenticated mode)
+        const { data: { session } } = await supabase.auth.getSession();
         
-        if (!error && data) {
-          setConnectedIntegrations(data);
+        if (session?.user) {
+          // Authenticated mode: read from database
+          const { data, error } = await supabase
+            .from('integrations')
+            .select('*')
+            .eq('status', 'connected');
+          
+          if (!error && data) {
+            setConnectedIntegrations(data);
+            return;
+          }
+        }
+        
+        // Guest mode: read from localStorage
+        const GUEST_INTEGRATIONS_KEY = "okidoki_integrations";
+        const stored = localStorage.getItem(GUEST_INTEGRATIONS_KEY);
+        if (stored) {
+          const guestIntegrations = JSON.parse(stored) as Integration[];
+          const connected = guestIntegrations.filter(i => i.status === 'connected');
+          setConnectedIntegrations(connected);
         }
       } catch (err) {
         console.log('Could not load integrations:', err);
