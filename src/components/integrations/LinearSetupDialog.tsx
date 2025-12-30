@@ -209,9 +209,9 @@ export function LinearSetupDialog({
           team_id: selectedTeamId,
           team_name: selectedTeam?.name,
           team_key: selectedTeam?.key,
-          project_id: selectedProjectId || null,
+          project_id: selectedProjectId === "none" ? null : selectedProjectId || null,
           project_name:
-            projects.find((p) => p.id === selectedProjectId)?.name || null,
+            selectedProjectId !== "none" ? projects.find((p) => p.id === selectedProjectId)?.name || null : null,
           mcp_enabled: mcpConnected,
           mcp_server: "https://mcp.linear.app/mcp",
         },
@@ -402,7 +402,7 @@ export function LinearSetupDialog({
                       <SelectValue placeholder="No default project" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No default project</SelectItem>
+                      <SelectItem value="none">No default project</SelectItem>
                       {projects.map((project) => (
                         <SelectItem key={project.id} value={project.id}>
                           {project.name}

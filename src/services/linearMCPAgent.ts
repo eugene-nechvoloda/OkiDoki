@@ -172,7 +172,7 @@ The parentStepIndex references the step index of the parent issue (null for root
 Return ONLY the JSON, no markdown formatting.`;
 
   // Call Anthropic API
-  const anthropicKey = process.env.ANTHROPIC_API_KEY || Deno.env.get("ANTHROPIC_API_KEY");
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
   if (!anthropicKey) {
     throw new Error("ANTHROPIC_API_KEY not configured");
   }
