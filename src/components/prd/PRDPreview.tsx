@@ -327,8 +327,8 @@ export function PRDPreview({
           body: {
             title: title || "PRD Document",
             content: currentContent,
-            teamId: integration?.config_json?.team_id,
-            projectId: integration?.config_json?.project_id,
+            teamId: (integration?.config_json as Record<string, unknown>)?.team_id,
+            projectId: (integration?.config_json as Record<string, unknown>)?.project_id,
           },
         });
 
