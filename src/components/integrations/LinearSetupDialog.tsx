@@ -43,6 +43,8 @@ export function LinearSetupDialog({
   const [step, setStep] = useState<"api-key" | "team-selection">("api-key");
   const [isLoading, setIsLoading] = useState(false);
   const [apiKey, setApiKey] = useState("");
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [apiKeyValid, setApiKeyValid] = useState(false);
   const [teams, setTeams] = useState<LinearTeam[]>([]);
   const [projects, setProjects] = useState<LinearProject[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
@@ -54,6 +56,8 @@ export function LinearSetupDialog({
     if (!open) {
       setStep("api-key");
       setApiKey("");
+      setApiKeyError(null);
+      setApiKeyValid(false);
       setTeams([]);
       setProjects([]);
       setSelectedTeamId("");
@@ -61,6 +65,42 @@ export function LinearSetupDialog({
       setWorkspaceName("");
     }
   }, [open]);
+
+  // Validate API key format in real-time
+  const validateApiKeyFormat = (key: string) => {
+    if (!key.trim()) {
+      setApiKeyError(null);
+      setApiKeyValid(false);
+      return;
+    }
+    
+    if (!key.startsWith("lin_api_")) {
+      setApiKeyError("API key must start with 'lin_api_'");
+      setApiKeyValid(false);
+      return;
+    }
+    
+    if (key.length < 40) {
+      setApiKeyError("API key is too short");
+      setApiKeyValid(false);
+      return;
+    }
+    
+    // Check for invalid characters (Linear API keys are alphanumeric with underscores)
+    if (!/^lin_api_[a-zA-Z0-9]+$/.test(key)) {
+      setApiKeyError("API key contains invalid characters");
+      setApiKeyValid(false);
+      return;
+    }
+    
+    setApiKeyError(null);
+    setApiKeyValid(true);
+  };
+
+  const handleApiKeyChange = (value: string) => {
+    setApiKey(value);
+    validateApiKeyFormat(value);
+  };
 
   // Load projects when team is selected
   useEffect(() => {
@@ -286,22 +326,45 @@ export function LinearSetupDialog({
 
                 <div>
                   <Label htmlFor="api-key">Linear API Key *</Label>
-                  <Input
-                    id="api-key"
-                    type="password"
-                    placeholder="lin_api_..."
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    className="mt-1.5 font-mono text-sm"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && apiKey.trim()) {
-                        handleValidateApiKey();
-                      }
-                    }}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Your API key will be stored securely
-                  </p>
+                  <div className="relative">
+                    <Input
+                      id="api-key"
+                      type="password"
+                      placeholder="lin_api_..."
+                      value={apiKey}
+                      onChange={(e) => handleApiKeyChange(e.target.value)}
+                      className={`mt-1.5 font-mono text-sm pr-10 ${
+                        apiKeyError 
+                          ? "border-destructive focus-visible:ring-destructive" 
+                          : apiKeyValid 
+                            ? "border-green-500 focus-visible:ring-green-500" 
+                            : ""
+                      }`}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && apiKey.trim() && apiKeyValid) {
+                          handleValidateApiKey();
+                        }
+                      }}
+                    />
+                    {apiKey && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 mt-0.5">
+                        {apiKeyValid ? (
+                          <Check className="h-4 w-4 text-green-500" />
+                        ) : apiKeyError ? (
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                  {apiKeyError ? (
+                    <p className="text-xs text-destructive mt-1">{apiKeyError}</p>
+                  ) : apiKeyValid ? (
+                    <p className="text-xs text-green-600 mt-1">Format looks valid ✓</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Your API key will be stored securely
+                    </p>
+                  )}
                 </div>
 
                 <div className="p-4 bg-muted rounded-lg">
@@ -340,7 +403,7 @@ export function LinearSetupDialog({
                   </Button>
                   <Button
                     onClick={handleValidateApiKey}
-                    disabled={isLoading || !apiKey.trim()}
+                    disabled={isLoading || !apiKey.trim() || !apiKeyValid}
                     className="gradient-brand text-primary-foreground"
                   >
                     {isLoading ? (
