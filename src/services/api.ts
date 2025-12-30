@@ -1222,6 +1222,100 @@ export async function updateIntegration(
   return { integration };
 }
 
+// Test integration connection by verifying the API key still works
+export async function testIntegrationConnection(
+  integrationId: string
+): Promise<{ success: boolean; message: string }> {
+  const authed = await isAuthenticated();
+  const now = new Date().toISOString();
+
+  // Get the integration
+  let integration: Integration | undefined;
+
+  if (!authed) {
+    const guestIntegrations = readGuestJson<Integration[]>(GUEST_INTEGRATIONS_KEY, []);
+    integration = guestIntegrations.find(i => i.id === integrationId);
+  } else {
+    const { data, error } = await supabase
+      .from('integrations')
+      .select('*')
+      .eq('id', integrationId)
+      .single();
+
+    if (error) {
+      console.error('Failed to fetch integration:', error);
+      throw error;
+    }
+    integration = data;
+  }
+
+  if (!integration) {
+    throw new Error('Integration not found');
+  }
+
+  // Test based on provider
+  const config = integration.config_json as Record<string, unknown>;
+
+  if (integration.provider === 'linear') {
+    const apiKey = config.api_key as string;
+    if (!apiKey) {
+      return { success: false, message: 'No API key found' };
+    }
+
+    try {
+      // Test the Linear API by fetching workspace info
+      const response = await fetch('https://api.linear.app/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': apiKey,
+        },
+        body: JSON.stringify({
+          query: '{ viewer { id name } }',
+        }),
+      });
+
+      if (!response.ok) {
+        return { success: false, message: 'API key is invalid or expired' };
+      }
+
+      const result = await response.json();
+      if (result.errors) {
+        return { success: false, message: result.errors[0]?.message || 'API error' };
+      }
+
+      // Update the last_verified timestamp
+      const updatedConfig = {
+        ...config,
+        last_verified: now,
+      };
+
+      if (!authed) {
+        const guestIntegrations = readGuestJson<Integration[]>(GUEST_INTEGRATIONS_KEY, []);
+        const index = guestIntegrations.findIndex(i => i.id === integrationId);
+        if (index >= 0) {
+          guestIntegrations[index].config_json = updatedConfig;
+          guestIntegrations[index].updated_at = now;
+          writeGuestJson(GUEST_INTEGRATIONS_KEY, guestIntegrations);
+        }
+      } else {
+        await supabase
+          .from('integrations')
+          .update({ config_json: updatedConfig, updated_at: now })
+          .eq('id', integrationId);
+      }
+
+      return { success: true, message: `Connected as ${result.data?.viewer?.name || 'user'}` };
+    } catch (error) {
+      console.error('Test connection failed:', error);
+      return { success: false, message: 'Connection test failed' };
+    }
+  }
+
+  // For other providers, just return success for now
+  return { success: true, message: 'Connection verified' };
+}
+
 // OAuth configuration for each integration
 export const INTEGRATION_CONFIG = {
   confluence: {

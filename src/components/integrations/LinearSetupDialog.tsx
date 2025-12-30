@@ -415,6 +415,14 @@ export function LinearSetupDialog({
                   </p>
                 </div>
 
+                <div className="p-3 bg-muted/50 border border-border rounded-lg">
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Note:</strong> API key connections do not appear in Linear's "Authorized Apps" list. 
+                    That list only shows OAuth-based app connections. Your API key will be stored securely and 
+                    you can test the connection from the Integrations page after setup.
+                  </p>
+                </div>
+
                 <div className="flex justify-end gap-2 pt-2">
                   <Button
                     variant="outline"
