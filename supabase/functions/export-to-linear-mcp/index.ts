@@ -65,8 +65,17 @@ serve(async (req) => {
       );
     }
 
-    const LINEAR_API_KEY = integration.credentials_encrypted;
+    // Get API key from config_json (where it's actually stored)
     const config = integration.config_json as Record<string, any>;
+    const LINEAR_API_KEY = config?.api_key;
+    
+    if (!LINEAR_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: "Linear API key not found in integration config." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
     const finalTeamId = teamId || config.team_id;
     const finalProjectId = projectId || config.project_id;
 
