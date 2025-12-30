@@ -19,6 +19,10 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -27,10 +31,12 @@ import { toast } from "sonner";
 import {
   getIntegrations,
   disconnectIntegration,
+  testIntegrationConnection,
   INTEGRATION_CONFIG,
 } from "@/services/api";
 import type { Integration } from "@/types/database";
 import { IntegrationSetupDialog } from "@/components/integrations/IntegrationSetupDialog";
+import { LinearSetupDialog } from "@/components/integrations/LinearSetupDialog";
 import { IntegrationLogo } from "@/components/integrations/IntegrationLogos";
 import {
   Collapsible,
@@ -53,9 +59,14 @@ export default function Integrations() {
     null
   );
   const [showSetupDialog, setShowSetupDialog] = useState(false);
+  const [showLinearSetupDialog, setShowLinearSetupDialog] = useState(false);
   const [expandedIntegrations, setExpandedIntegrations] = useState<Set<string>>(
     new Set()
   );
+  const [testingConnection, setTestingConnection] = useState<string | null>(null);
+  const [connectionTestResults, setConnectionTestResults] = useState<
+    Record<string, { success: boolean; message: string; testedAt: string }>
+  >({});
 
   useEffect(() => {
     loadIntegrations();
@@ -75,8 +86,12 @@ export default function Integrations() {
   };
 
   const handleConnect = (provider: IntegrationProvider) => {
-    setSetupProvider(provider);
-    setShowSetupDialog(true);
+    if (provider === "linear") {
+      setShowLinearSetupDialog(true);
+    } else {
+      setSetupProvider(provider);
+      setShowSetupDialog(true);
+    }
   };
 
   const handleDisconnect = async (integrationId: string, providerName: string) => {
@@ -102,6 +117,41 @@ export default function Integrations() {
       newExpanded.add(integrationId);
     }
     setExpandedIntegrations(newExpanded);
+  };
+
+  const handleTestConnection = async (integrationId: string) => {
+    setTestingConnection(integrationId);
+    try {
+      const result = await testIntegrationConnection(integrationId);
+      setConnectionTestResults(prev => ({
+        ...prev,
+        [integrationId]: {
+          ...result,
+          testedAt: new Date().toISOString(),
+        },
+      }));
+      
+      if (result.success) {
+        toast.success(result.message);
+        // Reload integrations to get updated last_verified timestamp
+        await loadIntegrations();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      console.error('Test connection failed:', error);
+      toast.error('Failed to test connection');
+      setConnectionTestResults(prev => ({
+        ...prev,
+        [integrationId]: {
+          success: false,
+          message: 'Test failed',
+          testedAt: new Date().toISOString(),
+        },
+      }));
+    } finally {
+      setTestingConnection(null);
+    }
   };
 
   const getIntegrationByProvider = (provider: IntegrationProvider) => {
@@ -271,6 +321,21 @@ export default function Integrations() {
                             ? expandedIntegrations.has(integration.id)
                             : false;
 
+                          const getRelativeTime = (dateString: string) => {
+                            const date = new Date(dateString);
+                            const now = new Date();
+                            const diffMs = now.getTime() - date.getTime();
+                            const diffMins = Math.floor(diffMs / 60000);
+                            const diffHours = Math.floor(diffMs / 3600000);
+                            const diffDays = Math.floor(diffMs / 86400000);
+
+                            if (diffMins < 1) return "just now";
+                            if (diffMins < 60) return `${diffMins}m ago`;
+                            if (diffHours < 24) return `${diffHours}h ago`;
+                            if (diffDays < 7) return `${diffDays}d ago`;
+                            return date.toLocaleDateString();
+                          };
+
                           return (
                             <div
                               key={provider}
@@ -288,16 +353,49 @@ export default function Integrations() {
                                     <h3 className="font-semibold flex items-center gap-2">
                                       {config.name}
                                       {isConnected && (
-                                        <Check className="h-4 w-4 text-green-500" />
+                                        <span className="inline-flex items-center gap-1 text-xs font-normal text-green-600 bg-green-500/10 px-2 py-0.5 rounded-full">
+                                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                                          Connected
+                                        </span>
                                       )}
                                     </h3>
                                     <p className="text-sm text-muted-foreground">
                                       {config.description}
                                     </p>
+                                    {isConnected && integration && (
+                                      <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                                        <span className="flex items-center gap-1">
+                                          <Clock className="h-3 w-3" />
+                                          Connected {getRelativeTime(integration.created_at)}
+                                        </span>
+                                        {integration.updated_at !== integration.created_at && (
+                                          <span className="text-muted-foreground/70">
+                                            · Updated {getRelativeTime(integration.updated_at)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                                 {isConnected && integration ? (
                                   <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleTestConnection(integration.id)}
+                                      disabled={testingConnection === integration.id}
+                                    >
+                                      {testingConnection === integration.id ? (
+                                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                      ) : connectionTestResults[integration.id]?.success ? (
+                                        <CheckCircle2 className="h-3 w-3 mr-1 text-green-500" />
+                                      ) : connectionTestResults[integration.id]?.success === false ? (
+                                        <XCircle className="h-3 w-3 mr-1 text-destructive" />
+                                      ) : (
+                                        <RefreshCw className="h-3 w-3 mr-1" />
+                                      )}
+                                      Test
+                                    </Button>
                                     <Button
                                       size="sm"
                                       variant="outline"
@@ -365,6 +463,29 @@ export default function Integrations() {
                                       </div>
                                     )}
 
+                                    {(integration.config_json as Record<string, unknown>)?.team_name && (
+                                      <div className="text-xs">
+                                        <span className="text-muted-foreground">
+                                          Team:{" "}
+                                        </span>
+                                        <span className="font-medium">
+                                          {(integration.config_json as Record<string, unknown>).team_name as string}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {(integration.config_json as Record<string, unknown>)?.last_verified && (
+                                      <div className="text-xs flex items-center gap-1.5">
+                                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                        <span className="text-muted-foreground">
+                                          Last verified:{" "}
+                                        </span>
+                                        <span className="font-medium text-green-600">
+                                          {getRelativeTime((integration.config_json as Record<string, unknown>).last_verified as string)}
+                                        </span>
+                                      </div>
+                                    )}
+
                                     <div className="text-xs">
                                       <span className="text-muted-foreground">
                                         Scopes:{" "}
@@ -382,13 +503,6 @@ export default function Integrations() {
                                           </div>
                                         ))}
                                       </div>
-                                    </div>
-
-                                    <div className="text-xs text-muted-foreground">
-                                      Connected{" "}
-                                      {new Date(
-                                        integration.created_at
-                                      ).toLocaleDateString()}
                                     </div>
                                   </CollapsibleContent>
                                 </Collapsible>
@@ -503,6 +617,13 @@ export default function Integrations() {
           provider={setupProvider}
           open={showSetupDialog}
           onOpenChange={setShowSetupDialog}
+          onSuccess={loadIntegrations}
+        />
+
+        {/* Linear Setup Dialog */}
+        <LinearSetupDialog
+          open={showLinearSetupDialog}
+          onOpenChange={setShowLinearSetupDialog}
           onSuccess={loadIntegrations}
         />
       </div>

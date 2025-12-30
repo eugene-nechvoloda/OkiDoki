@@ -240,17 +240,33 @@ export function PRDPreview({
   const [exportingProvider, setExportingProvider] = useState<IntegrationProvider | null>(null);
   const [connectedIntegrations, setConnectedIntegrations] = useState<Integration[]>([]);
 
-  // Load connected integrations
+  // Load connected integrations from both guest mode and authenticated mode
   useEffect(() => {
     const loadIntegrations = async () => {
       try {
-        const { data, error } = await supabase
-          .from('integrations')
-          .select('*')
-          .eq('status', 'connected');
+        // First try to load from Supabase (authenticated mode)
+        const { data: { session } } = await supabase.auth.getSession();
         
-        if (!error && data) {
-          setConnectedIntegrations(data);
+        if (session?.user) {
+          // Authenticated mode: read from database
+          const { data, error } = await supabase
+            .from('integrations')
+            .select('*')
+            .eq('status', 'connected');
+          
+          if (!error && data) {
+            setConnectedIntegrations(data);
+            return;
+          }
+        }
+        
+        // Guest mode: read from localStorage
+        const GUEST_INTEGRATIONS_KEY = "okidoki_integrations";
+        const stored = localStorage.getItem(GUEST_INTEGRATIONS_KEY);
+        if (stored) {
+          const guestIntegrations = JSON.parse(stored) as Integration[];
+          const connected = guestIntegrations.filter(i => i.status === 'connected');
+          setConnectedIntegrations(connected);
         }
       } catch (err) {
         console.log('Could not load integrations:', err);
@@ -311,16 +327,61 @@ export function PRDPreview({
 
   const handleExportToIntegration = async (provider: IntegrationProvider) => {
     if (!currentContent) return;
-    
+
     const integration = connectedIntegrations.find(i => i.provider === provider);
     const config = INTEGRATION_CONFIG[provider];
-    
+
     setIsExporting(true);
     setExportingProvider(provider);
-    
+
     try {
       toast.info(`Exporting to ${config.name}...`);
-      
+
+      // Use MCP-powered intelligent export for Linear
+      if (provider === 'linear') {
+        const { data, error } = await supabase.functions.invoke("export-to-linear-mcp", {
+          body: {
+            title: title || "PRD Document",
+            content: currentContent,
+            teamId: (integration?.config_json as Record<string, unknown>)?.team_id,
+            projectId: (integration?.config_json as Record<string, unknown>)?.project_id,
+          },
+        });
+
+        if (error) {
+          console.error(`Export to ${config.name} error:`, error);
+          toast.error(error.message || `Failed to export to ${config.name}`);
+          return;
+        }
+
+        if (data?.error || data?.errors) {
+          const errorMsg = data?.error || (data?.errors?.length > 0 ? data.errors.join(', ') : 'Unknown error');
+          toast.error(errorMsg);
+
+          // Show agent log if available
+          if (data?.agentLog && data.agentLog.length > 0) {
+            console.log("Linear MCP Export Log:", data.agentLog.join('\n'));
+          }
+          return;
+        }
+
+        if (data?.success || data?.createdIssues?.length > 0) {
+          const msg = `Created ${data.totalIssues || data.createdIssues.length} issues in ${config.name}`;
+          toast.success(msg);
+
+          // Show agent log in console
+          if (data?.agentLog && data.agentLog.length > 0) {
+            console.log("Linear MCP Export Log:", data.agentLog.join('\n'));
+          }
+
+          if (data.rootIssue?.url) {
+            window.open(data.rootIssue.url, "_blank");
+          }
+        }
+        return;
+      }
+
+      // Use generic export for other integrations
       const { data, error } = await supabase.functions.invoke("export-to-integration", {
         body: {
           provider,
