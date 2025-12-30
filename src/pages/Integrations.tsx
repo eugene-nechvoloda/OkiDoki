@@ -19,6 +19,7 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -277,6 +278,21 @@ export default function Integrations() {
                             ? expandedIntegrations.has(integration.id)
                             : false;
 
+                          const getRelativeTime = (dateString: string) => {
+                            const date = new Date(dateString);
+                            const now = new Date();
+                            const diffMs = now.getTime() - date.getTime();
+                            const diffMins = Math.floor(diffMs / 60000);
+                            const diffHours = Math.floor(diffMs / 3600000);
+                            const diffDays = Math.floor(diffMs / 86400000);
+
+                            if (diffMins < 1) return "just now";
+                            if (diffMins < 60) return `${diffMins}m ago`;
+                            if (diffHours < 24) return `${diffHours}h ago`;
+                            if (diffDays < 7) return `${diffDays}d ago`;
+                            return date.toLocaleDateString();
+                          };
+
                           return (
                             <div
                               key={provider}
@@ -294,12 +310,28 @@ export default function Integrations() {
                                     <h3 className="font-semibold flex items-center gap-2">
                                       {config.name}
                                       {isConnected && (
-                                        <Check className="h-4 w-4 text-green-500" />
+                                        <span className="inline-flex items-center gap-1 text-xs font-normal text-green-600 bg-green-500/10 px-2 py-0.5 rounded-full">
+                                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                                          Connected
+                                        </span>
                                       )}
                                     </h3>
                                     <p className="text-sm text-muted-foreground">
                                       {config.description}
                                     </p>
+                                    {isConnected && integration && (
+                                      <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                                        <span className="flex items-center gap-1">
+                                          <Clock className="h-3 w-3" />
+                                          Connected {getRelativeTime(integration.created_at)}
+                                        </span>
+                                        {integration.updated_at !== integration.created_at && (
+                                          <span className="text-muted-foreground/70">
+                                            · Updated {getRelativeTime(integration.updated_at)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                                 {isConnected && integration ? (
@@ -371,6 +403,17 @@ export default function Integrations() {
                                       </div>
                                     )}
 
+                                    {(integration.config_json as Record<string, unknown>)?.team_name && (
+                                      <div className="text-xs">
+                                        <span className="text-muted-foreground">
+                                          Team:{" "}
+                                        </span>
+                                        <span className="font-medium">
+                                          {(integration.config_json as Record<string, unknown>).team_name as string}
+                                        </span>
+                                      </div>
+                                    )}
+
                                     <div className="text-xs">
                                       <span className="text-muted-foreground">
                                         Scopes:{" "}
@@ -388,13 +431,6 @@ export default function Integrations() {
                                           </div>
                                         ))}
                                       </div>
-                                    </div>
-
-                                    <div className="text-xs text-muted-foreground">
-                                      Connected{" "}
-                                      {new Date(
-                                        integration.created_at
-                                      ).toLocaleDateString()}
                                     </div>
                                   </CollapsibleContent>
                                 </Collapsible>
