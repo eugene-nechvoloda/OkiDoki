@@ -225,6 +225,22 @@ export function LinearSetupDialog({
     try {
       const selectedTeam = teams.find((t) => t.id === selectedTeamId);
 
+      // Test MCP one more time before saving
+      const mcpConnected = await testLinearMCPConnection(apiKey);
+
+      const integrationConfig = {
+        workspace_name: workspaceName,
+        team_id: selectedTeamId,
+        team_name: selectedTeam?.name,
+        team_key: selectedTeam?.key,
+        project_id: selectedProjectId === "none" ? null : selectedProjectId || null,
+        project_name:
+          selectedProjectId !== "none" ? projects.find((p) => p.id === selectedProjectId)?.name || null : null,
+        mcp_enabled: mcpConnected,
+        mcp_server: "https://mcp.linear.app/mcp",
+        api_key: apiKey, // Store for guest mode usage
+      };
+
       // Get current user
       const {
         data: { user },
@@ -232,35 +248,41 @@ export function LinearSetupDialog({
 
       if (!user) {
         // For guest mode, store in localStorage
-        toast.info("Linear integration requires authentication. Please sign in.");
-        return;
-      }
+        const guestIntegrations = JSON.parse(localStorage.getItem("okidoki_integrations") || "[]");
+        
+        // Check if Linear integration already exists
+        const existingIndex = guestIntegrations.findIndex((i: { provider: string }) => i.provider === "linear");
+        
+        const integrationData = {
+          id: existingIndex >= 0 ? guestIntegrations[existingIndex].id : crypto.randomUUID(),
+          provider: "linear",
+          config_json: integrationConfig,
+          status: "connected",
+          created_at: existingIndex >= 0 ? guestIntegrations[existingIndex].created_at : new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
 
-      // Test MCP one more time before saving
-      const mcpConnected = await testLinearMCPConnection(apiKey);
+        if (existingIndex >= 0) {
+          guestIntegrations[existingIndex] = integrationData;
+        } else {
+          guestIntegrations.push(integrationData);
+        }
 
-      // Store integration in database
-      const { error } = await supabase.from("integrations").insert({
-        user_id: user.id,
-        provider: "linear",
-        credentials_encrypted: apiKey, // In production, encrypt this!
-        config_json: {
-          workspace_name: workspaceName,
-          team_id: selectedTeamId,
-          team_name: selectedTeam?.name,
-          team_key: selectedTeam?.key,
-          project_id: selectedProjectId === "none" ? null : selectedProjectId || null,
-          project_name:
-            selectedProjectId !== "none" ? projects.find((p) => p.id === selectedProjectId)?.name || null : null,
-          mcp_enabled: mcpConnected,
-          mcp_server: "https://mcp.linear.app/mcp",
-        },
-        status: "connected",
-      });
+        localStorage.setItem("okidoki_integrations", JSON.stringify(guestIntegrations));
+      } else {
+        // Store integration in database for authenticated users
+        const { error } = await supabase.from("integrations").insert({
+          user_id: user.id,
+          provider: "linear",
+          credentials_encrypted: apiKey, // In production, encrypt this!
+          config_json: integrationConfig,
+          status: "connected",
+        });
 
-      if (error) {
-        console.error("Failed to save integration:", error);
-        throw new Error("Failed to save integration");
+        if (error) {
+          console.error("Failed to save integration:", error);
+          throw new Error("Failed to save integration");
+        }
       }
 
       toast.success(
