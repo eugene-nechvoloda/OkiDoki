@@ -20,6 +20,9 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
+  CheckCircle2,
+  XCircle,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -28,6 +31,7 @@ import { toast } from "sonner";
 import {
   getIntegrations,
   disconnectIntegration,
+  testIntegrationConnection,
   INTEGRATION_CONFIG,
 } from "@/services/api";
 import type { Integration } from "@/types/database";
@@ -59,6 +63,10 @@ export default function Integrations() {
   const [expandedIntegrations, setExpandedIntegrations] = useState<Set<string>>(
     new Set()
   );
+  const [testingConnection, setTestingConnection] = useState<string | null>(null);
+  const [connectionTestResults, setConnectionTestResults] = useState<
+    Record<string, { success: boolean; message: string; testedAt: string }>
+  >({});
 
   useEffect(() => {
     loadIntegrations();
@@ -109,6 +117,41 @@ export default function Integrations() {
       newExpanded.add(integrationId);
     }
     setExpandedIntegrations(newExpanded);
+  };
+
+  const handleTestConnection = async (integrationId: string) => {
+    setTestingConnection(integrationId);
+    try {
+      const result = await testIntegrationConnection(integrationId);
+      setConnectionTestResults(prev => ({
+        ...prev,
+        [integrationId]: {
+          ...result,
+          testedAt: new Date().toISOString(),
+        },
+      }));
+      
+      if (result.success) {
+        toast.success(result.message);
+        // Reload integrations to get updated last_verified timestamp
+        await loadIntegrations();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      console.error('Test connection failed:', error);
+      toast.error('Failed to test connection');
+      setConnectionTestResults(prev => ({
+        ...prev,
+        [integrationId]: {
+          success: false,
+          message: 'Test failed',
+          testedAt: new Date().toISOString(),
+        },
+      }));
+    } finally {
+      setTestingConnection(null);
+    }
   };
 
   const getIntegrationByProvider = (provider: IntegrationProvider) => {
@@ -339,6 +382,23 @@ export default function Integrations() {
                                     <Button
                                       size="sm"
                                       variant="outline"
+                                      onClick={() => handleTestConnection(integration.id)}
+                                      disabled={testingConnection === integration.id}
+                                    >
+                                      {testingConnection === integration.id ? (
+                                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                      ) : connectionTestResults[integration.id]?.success ? (
+                                        <CheckCircle2 className="h-3 w-3 mr-1 text-green-500" />
+                                      ) : connectionTestResults[integration.id]?.success === false ? (
+                                        <XCircle className="h-3 w-3 mr-1 text-destructive" />
+                                      ) : (
+                                        <RefreshCw className="h-3 w-3 mr-1" />
+                                      )}
+                                      Test
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
                                       onClick={() =>
                                         handleDisconnect(
                                           integration.id,
@@ -410,6 +470,18 @@ export default function Integrations() {
                                         </span>
                                         <span className="font-medium">
                                           {(integration.config_json as Record<string, unknown>).team_name as string}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {(integration.config_json as Record<string, unknown>)?.last_verified && (
+                                      <div className="text-xs flex items-center gap-1.5">
+                                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                        <span className="text-muted-foreground">
+                                          Last verified:{" "}
+                                        </span>
+                                        <span className="font-medium text-green-600">
+                                          {getRelativeTime((integration.config_json as Record<string, unknown>).last_verified as string)}
                                         </span>
                                       </div>
                                     )}
