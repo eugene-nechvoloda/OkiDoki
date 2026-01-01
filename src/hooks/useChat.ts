@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { Message, Chat, PRDTemplate, ChatSettings } from "@/types";
 import { BUILT_IN_TEMPLATES } from "@/data/templates";
@@ -39,6 +39,10 @@ export function useChat() {
     }
   });
   const [prdContent, setPrdContent] = useState("");
+  
+  // Track previous PRD content for revert functionality
+  const previousPrdContentRef = useRef<string>("");
+  const [canRevert, setCanRevert] = useState(false);
 
   // TEMPORARY: Debug logging
   useEffect(() => {
@@ -261,6 +265,12 @@ export function useChat() {
           prev.map((c) => (c.id === finalChat.id ? finalChat : c))
         );
         setStreamingContent("");
+        
+        // Save previous content for revert and update current
+        if (prdContent && prdContent !== fullContent) {
+          previousPrdContentRef.current = prdContent;
+          setCanRevert(true);
+        }
         setPrdContent(fullContent);
 
         // Save chat to database
@@ -305,6 +315,16 @@ export function useChat() {
     [currentChat, createNewChat, selectedTemplate, user]
   );
 
+  // Revert to previous PRD content
+  const revertPrdContent = useCallback(() => {
+    if (previousPrdContentRef.current) {
+      const current = prdContent;
+      setPrdContent(previousPrdContentRef.current);
+      previousPrdContentRef.current = current; // Allow toggling back
+      toast.success("Reverted to previous version");
+    }
+  }, [prdContent]);
+
   return {
     chats,
     currentChat,
@@ -313,10 +333,12 @@ export function useChat() {
     streamingContent,
     selectedTemplate,
     prdContent,
+    canRevert,
     setSelectedTemplate,
     createNewChat,
     selectChat,
     sendMessage,
     setPrdContent,
+    revertPrdContent,
   };
 }
