@@ -5,6 +5,7 @@ import { ChatInterface } from "@/components/chat/ChatInterface";
 import { PRDPreview } from "@/components/prd/PRDPreview";
 import { useChat } from "@/hooks/useChat";
 import { saveDocument, getFolders } from "@/services/api";
+import { supabase } from "@/integrations/supabase/client";
 import type { Folder } from "@/types/database";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ const Index = () => {
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [previewClosed, setPreviewClosed] = useState(false);
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [isGeneratingBacklog, setIsGeneratingBacklog] = useState(false);
 
   const {
     chats,
@@ -24,10 +26,12 @@ const Index = () => {
     streamingContent,
     selectedTemplate,
     prdContent,
+    canRevert,
     setSelectedTemplate,
     createNewChat,
     selectChat,
     sendMessage,
+    revertPrdContent,
   } = useChat();
 
   // Load folders on mount
@@ -103,6 +107,33 @@ const Index = () => {
     }
   };
 
+  // Generate backlog from PRD
+  const handleGenerateBacklog = async () => {
+    if (!prdContent) return;
+    
+    setIsGeneratingBacklog(true);
+    try {
+      toast.info("Generating backlog from PRD...");
+      
+      const { data, error } = await supabase.functions.invoke("generate-backlog", {
+        body: { prdContent, prdTitle: currentChat?.title || "Untitled PRD" },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      if (data?.backlog) {
+        toast.success(`Generated ${data.backlog.items.length} backlog items`);
+        navigate("/backlog", { state: { backlog: data.backlog } });
+      }
+    } catch (error) {
+      console.error("Failed to generate backlog:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to generate backlog");
+    } finally {
+      setIsGeneratingBacklog(false);
+    }
+  };
+
   return (
     <MainLayout
       chats={chats}
@@ -150,6 +181,10 @@ const Index = () => {
                   isStreaming={isLoading && !!streamingContent}
                   onSaveToFolder={handleSaveToFolder}
                   folders={folders}
+                  onRevert={revertPrdContent}
+                  canRevert={canRevert}
+                  onGenerateBacklog={handleGenerateBacklog}
+                  isGeneratingBacklog={isGeneratingBacklog}
                 />
               </div>
             )}

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ChatSidebar } from "@/components/layout/ChatSidebar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FolderKanban, LayoutTemplate, Plug, MessageSquare } from "lucide-react";
+import { FolderKanban, LayoutTemplate, Plug, MessageSquare, ListTodo } from "lucide-react";
 import okidokiLogo from "@/assets/logos/okidoki-logo.png";
 import { cn } from "@/lib/utils";
 import type { Chat } from "@/types";
@@ -15,11 +15,12 @@ interface MainLayoutProps {
   onSelectChat: (chatId: string) => void;
 }
 
-type TabValue = "chats" | "documents" | "templates" | "integrations";
+type TabValue = "chats" | "documents" | "templates" | "integrations" | "backlog";
 
 const TABS = [
   { id: "chats" as const, label: "Chats", icon: MessageSquare },
   { id: "documents" as const, label: "Documents", icon: FolderKanban },
+  { id: "backlog" as const, label: "Backlog", icon: ListTodo },
   { id: "templates" as const, label: "Templates", icon: LayoutTemplate },
   { id: "integrations" as const, label: "Integrations", icon: Plug },
 ];
@@ -40,6 +41,7 @@ export function MainLayout({
     if (location.pathname === "/projects") return "documents";
     if (location.pathname === "/templates") return "templates";
     if (location.pathname === "/integrations") return "integrations";
+    if (location.pathname === "/backlog") return "backlog";
     return "chats";
   };
 
@@ -51,6 +53,7 @@ export function MainLayout({
     else if (tab === "documents") navigate("/projects");
     else if (tab === "templates") navigate("/templates");
     else if (tab === "integrations") navigate("/integrations");
+    else if (tab === "backlog") navigate("/backlog");
   };
 
   // Wrap callbacks to navigate to chats tab when interacting with chat sidebar

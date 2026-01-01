@@ -37,6 +37,9 @@ import {
   FileDown,
   Share2,
   Loader2,
+  MoreVertical,
+  Undo2,
+  ListTodo,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect, useRef } from "react";
@@ -196,6 +199,10 @@ interface PRDPreviewProps {
   isStreaming?: boolean;
   onSaveToFolder?: (folderId?: string) => void;
   folders?: Folder[];
+  onRevert?: () => void;
+  canRevert?: boolean;
+  onGenerateBacklog?: () => void;
+  isGeneratingBacklog?: boolean;
 }
 
 interface Version {
@@ -211,6 +218,10 @@ export function PRDPreview({
   isStreaming,
   onSaveToFolder,
   folders = [],
+  onRevert,
+  canRevert = false,
+  onGenerateBacklog,
+  isGeneratingBacklog = false,
 }: PRDPreviewProps) {
   const [copied, setCopied] = useState(false);
   const [versions, setVersions] = useState<Version[]>([{ content, timestamp: Date.now() }]);
@@ -728,34 +739,9 @@ Provide ONLY the improved text, nothing else:`;
         </div>
 
         <div className="flex items-center gap-0.5">
-          {versions.length > 1 && (
-            <>
-              <span className="text-xs text-muted-foreground mr-1">
-                v{currentVersionIndex + 1}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={handleRollback}
-                disabled={currentVersionIndex === 0}
-                title="Previous version"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={handleRollForward}
-                disabled={currentVersionIndex === versions.length - 1}
-                title="Next version"
-              >
-                <History className="h-3.5 w-3.5" />
-              </Button>
-            </>
-          )}
-
+          {/* Primary Actions - Always Visible */}
+          
+          {/* Save Button */}
           {onSaveToFolder && currentContent && (
             <Button
               variant="ghost"
@@ -768,30 +754,7 @@ Provide ONLY the improved text, nothing else:`;
             </Button>
           )}
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                disabled={!currentContent}
-                title="Download"
-              >
-                <Download className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleDownloadPDF}>
-                <FileDown className="h-4 w-4 mr-2" />
-                PDF
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDownloadMarkdown}>
-                <FileText className="h-4 w-4 mr-2" />
-                Markdown
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
+          {/* Export Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -841,21 +804,21 @@ Provide ONLY the improved text, nothing else:`;
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={handleCopy}
-            disabled={!currentContent}
-            title="Copy raw markdown"
-          >
-            {copied ? (
-              <Check className="h-3.5 w-3.5 text-green-500" />
-            ) : (
-              <Copy className="h-3.5 w-3.5" />
-            )}
-          </Button>
+          {/* Revert Button */}
+          {onRevert && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={onRevert}
+              disabled={!canRevert}
+              title="Revert last changes"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
 
+          {/* Collapse Button */}
           {onCollapse && (
             <Button
               variant="ghost"
@@ -867,6 +830,87 @@ Provide ONLY the improved text, nothing else:`;
               <PanelRightClose className="h-3.5 w-3.5" />
             </Button>
           )}
+
+          {/* Three-dot Menu for Secondary Actions */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                title="More options"
+              >
+                <MoreVertical className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {/* Version History */}
+              {versions.length > 1 && (
+                <>
+                  <DropdownMenuLabel className="text-xs text-muted-foreground flex items-center gap-2">
+                    Version {currentVersionIndex + 1} of {versions.length}
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onClick={handleRollback}
+                    disabled={currentVersionIndex === 0}
+                  >
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Previous version
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={handleRollForward}
+                    disabled={currentVersionIndex === versions.length - 1}
+                  >
+                    <History className="h-4 w-4 mr-2" />
+                    Next version
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              
+              {/* Copy Markdown */}
+              <DropdownMenuItem onClick={handleCopy} disabled={!currentContent}>
+                {copied ? (
+                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                ) : (
+                  <Copy className="h-4 w-4 mr-2" />
+                )}
+                Copy markdown
+              </DropdownMenuItem>
+              
+              {/* Download Options */}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Download
+              </DropdownMenuLabel>
+              <DropdownMenuItem onClick={handleDownloadPDF} disabled={!currentContent}>
+                <FileDown className="h-4 w-4 mr-2" />
+                PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadMarkdown} disabled={!currentContent}>
+                <FileText className="h-4 w-4 mr-2" />
+                Markdown
+              </DropdownMenuItem>
+              
+              {/* Generate Backlog */}
+              {onGenerateBacklog && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={onGenerateBacklog} 
+                    disabled={!currentContent || isGeneratingBacklog}
+                  >
+                    {isGeneratingBacklog ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <ListTodo className="h-4 w-4 mr-2" />
+                    )}
+                    Generate Backlog
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
