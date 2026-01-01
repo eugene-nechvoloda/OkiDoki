@@ -45,7 +45,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import { generatePRD, INTEGRATION_CONFIG } from "@/services/api";
-import type { Project, Integration } from "@/types/database";
+import type { Folder, Integration } from "@/types/database";
 import { TextImprovementToolbar } from "./TextImprovementToolbar";
 import { TextImprovementConfirmPanel } from "./TextImprovementConfirmPanel";
 import { SelectionHighlight } from "./SelectionHighlight";
@@ -194,8 +194,8 @@ interface PRDPreviewProps {
   onClose: () => void;
   onCollapse?: () => void;
   isStreaming?: boolean;
-  onSaveToProject?: (projectId?: string) => void;
-  projects?: Project[];
+  onSaveToFolder?: (folderId?: string) => void;
+  folders?: Folder[];
 }
 
 interface Version {
@@ -209,8 +209,8 @@ export function PRDPreview({
   onClose,
   onCollapse,
   isStreaming,
-  onSaveToProject,
-  projects = [],
+  onSaveToFolder,
+  folders = [],
 }: PRDPreviewProps) {
   const [copied, setCopied] = useState(false);
   const [versions, setVersions] = useState<Version[]>([{ content, timestamp: Date.now() }]);
@@ -234,8 +234,8 @@ export function PRDPreview({
   } = useTextSelection(contentRef);
   
   // Dialog & export state
-  const [showProjectDialog, setShowProjectDialog] = useState(false);
-  const [selectedProjectForSave, setSelectedProjectForSave] = useState<string | undefined>();
+  const [showFolderDialog, setShowFolderDialog] = useState(false);
+  const [selectedFolderForSave, setSelectedFolderForSave] = useState<string | undefined>();
   const [isExporting, setIsExporting] = useState(false);
   const [exportingProvider, setExportingProvider] = useState<IntegrationProvider | null>(null);
   const [connectedIntegrations, setConnectedIntegrations] = useState<Integration[]>([]);
@@ -752,13 +752,13 @@ Provide ONLY the improved text, nothing else:`;
             </>
           )}
 
-          {onSaveToProject && currentContent && (
+          {onSaveToFolder && currentContent && (
             <Button
               variant="ghost"
               size="icon"
               className="h-6 w-6"
-              onClick={() => setShowProjectDialog(true)}
-              title="Save to Project"
+              onClick={() => setShowFolderDialog(true)}
+              title="Save to Folder"
             >
               <Save className="h-3.5 w-3.5" />
             </Button>
@@ -939,35 +939,35 @@ Provide ONLY the improved text, nothing else:`;
         </div>
       </ScrollArea>
 
-      {/* Project Selection Dialog */}
-      <Dialog open={showProjectDialog} onOpenChange={setShowProjectDialog}>
+      {/* Folder Selection Dialog */}
+      <Dialog open={showFolderDialog} onOpenChange={setShowFolderDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Save PRD to Project</DialogTitle>
+            <DialogTitle>Save PRD to Folder</DialogTitle>
             <DialogDescription>
-              Choose a project or save without a project
+              Choose a folder or save without a folder
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {projects.length > 0 ? (
+            {folders.length > 0 ? (
               <div>
                 <label className="text-sm font-medium mb-2 block">
-                  Select Project (Optional)
+                  Select Folder (Optional)
                 </label>
                 <Select
-                  value={selectedProjectForSave}
-                  onValueChange={setSelectedProjectForSave}
+                  value={selectedFolderForSave}
+                  onValueChange={setSelectedFolderForSave}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="No project (save to root)" />
+                    <SelectValue placeholder="No folder (save to root)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No project (save to root)</SelectItem>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
+                    <SelectItem value="none">No folder (save to root)</SelectItem>
+                    {folders.map((folder) => (
+                      <SelectItem key={folder.id} value={folder.id}>
                         <div className="flex items-center gap-2">
                           <FolderKanban className="h-4 w-4" />
-                          {project.name}
+                          {folder.name}
                         </div>
                       </SelectItem>
                     ))}
@@ -976,22 +976,22 @@ Provide ONLY the improved text, nothing else:`;
               </div>
             ) : (
               <div className="text-sm text-muted-foreground">
-                No projects yet. The PRD will be saved to your root documents.
+                No folders yet. The PRD will be saved to your root documents.
               </div>
             )}
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
-                onClick={() => setShowProjectDialog(false)}
+                onClick={() => setShowFolderDialog(false)}
               >
                 Cancel
               </Button>
               <Button
                 onClick={() => {
-                  const projectId = selectedProjectForSave === "none" ? undefined : selectedProjectForSave;
-                  onSaveToProject?.(projectId);
-                  setShowProjectDialog(false);
-                  setSelectedProjectForSave(undefined);
+                  const folderId = selectedFolderForSave === "none" ? undefined : selectedFolderForSave;
+                  onSaveToFolder?.(folderId);
+                  setShowFolderDialog(false);
+                  setSelectedFolderForSave(undefined);
                 }}
                 className="gradient-brand text-primary-foreground"
               >

@@ -47,17 +47,17 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  getProjects,
-  createProject,
-  updateProject,
-  deleteProject,
+  getFolders,
+  createFolder,
+  updateFolder,
+  deleteFolder,
   getDocuments,
   saveDocument,
   generatePRD,
 } from "@/services/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { useChat } from "@/hooks/useChat";
-import type { Project, PRDDocument } from "@/types/database";
+import type { Folder, PRDDocument } from "@/types/database";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -65,17 +65,17 @@ import type { Components } from "react-markdown";
 import { TextImprovementToolbar } from "@/components/prd/TextImprovementToolbar";
 import { TextImprovementConfirmPanel } from "@/components/prd/TextImprovementConfirmPanel";
 
-export default function Projects() {
+export default function Documents() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { chats, currentChat, createNewChat, selectChat } = useChat();
 
   
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [projectDocuments, setProjectDocuments] = useState<PRDDocument[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null);
+  const [folderDocuments, setFolderDocuments] = useState<PRDDocument[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<PRDDocument | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
@@ -91,127 +91,127 @@ export default function Projects() {
   const [regeneratedText, setRegeneratedText] = useState<string | null>(null);
   const toolbarDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Project creation/edit state
-  const [showProjectDialog, setShowProjectDialog] = useState(false);
-  const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [projectName, setProjectName] = useState("");
-  const [projectDescription, setProjectDescription] = useState("");
+  // Folder creation/edit state
+  const [showFolderDialog, setShowFolderDialog] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
+  const [folderName, setFolderName] = useState("");
+  const [folderDescription, setFolderDescription] = useState("");
 
   // Delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
+  const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
 
-  // Load projects on mount
+  // Load folders on mount
   useEffect(() => {
-    loadProjects();
+    loadFolders();
   }, [user]);
 
-  // Load documents when project is selected
+  // Load documents when folder is selected
   useEffect(() => {
-    if (selectedProject) {
-      loadProjectDocuments(selectedProject.id);
+    if (selectedFolder) {
+      loadFolderDocuments(selectedFolder.id);
     }
-  }, [selectedProject]);
+  }, [selectedFolder]);
 
-  async function loadProjects() {
+  async function loadFolders() {
     try {
       setLoading(true);
-      const { projects: proj } = await getProjects({ limit: 100 });
-      setProjects(proj);
+      const { folders: f } = await getFolders({ limit: 100 });
+      setFolders(f);
     } catch (error) {
-      console.error("Failed to load projects:", error);
-      toast.error("Failed to load projects");
+      console.error("Failed to load folders:", error);
+      toast.error("Failed to load folders");
     } finally {
       setLoading(false);
     }
   }
 
-  async function loadProjectDocuments(projectId: string) {
+  async function loadFolderDocuments(folderId: string) {
     try {
-      const { documents: docs } = await getDocuments({ projectId, limit: 100 });
-      setProjectDocuments(docs);
+      const { documents: docs } = await getDocuments({ folderId, limit: 100 });
+      setFolderDocuments(docs);
     } catch (error) {
-      console.error("Failed to load project documents:", error);
+      console.error("Failed to load folder documents:", error);
       toast.error("Failed to load documents");
     }
   }
 
-  const filteredProjects = projects.filter((project) =>
-    project.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredFolders = folders.filter((folder) =>
+    folder.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleCreateProject = async () => {
-    if (!projectName.trim()) {
-      toast.error("Project name is required");
+  const handleCreateFolder = async () => {
+    if (!folderName.trim()) {
+      toast.error("Folder name is required");
       return;
     }
 
     try {
-      if (editingProject) {
-        await updateProject({
-          projectId: editingProject.id,
-          name: projectName,
-          description: projectDescription,
+      if (editingFolder) {
+        await updateFolder({
+          folderId: editingFolder.id,
+          name: folderName,
+          description: folderDescription,
         });
-        toast.success("Project updated successfully");
+        toast.success("Folder updated successfully");
       } else {
-        await createProject({
-          name: projectName,
-          description: projectDescription,
+        await createFolder({
+          name: folderName,
+          description: folderDescription,
         });
-        toast.success("Project created successfully");
+        toast.success("Folder created successfully");
       }
 
-      setShowProjectDialog(false);
-      setProjectName("");
-      setProjectDescription("");
-      setEditingProject(null);
-      await loadProjects();
+      setShowFolderDialog(false);
+      setFolderName("");
+      setFolderDescription("");
+      setEditingFolder(null);
+      await loadFolders();
     } catch (error) {
-      console.error("Failed to create/update project:", error);
-      toast.error("Failed to save project");
+      console.error("Failed to create/update folder:", error);
+      toast.error("Failed to save folder");
     }
   };
 
-  const handleEditProject = (project: Project) => {
-    setEditingProject(project);
-    setProjectName(project.name);
-    setProjectDescription(project.description || "");
-    setShowProjectDialog(true);
+  const handleEditFolder = (folder: Folder) => {
+    setEditingFolder(folder);
+    setFolderName(folder.name);
+    setFolderDescription(folder.description || "");
+    setShowFolderDialog(true);
   };
 
-  const handleDeleteProject = async (projectId: string) => {
-    setProjectToDelete(projectId);
+  const handleDeleteFolder = async (folderId: string) => {
+    setFolderToDelete(folderId);
     setDeleteConfirmOpen(true);
   };
 
-  const confirmDeleteProject = async () => {
-    if (!projectToDelete) return;
+  const confirmDeleteFolder = async () => {
+    if (!folderToDelete) return;
 
     try {
-      await deleteProject(projectToDelete);
-      toast.success("Project deleted successfully");
-      await loadProjects();
-      if (selectedProject?.id === projectToDelete) {
-        setSelectedProject(null);
+      await deleteFolder(folderToDelete);
+      toast.success("Folder deleted successfully");
+      await loadFolders();
+      if (selectedFolder?.id === folderToDelete) {
+        setSelectedFolder(null);
       }
     } catch (error) {
-      console.error("Failed to delete project:", error);
-      toast.error("Failed to delete project");
+      console.error("Failed to delete folder:", error);
+      toast.error("Failed to delete folder");
     } finally {
       setDeleteConfirmOpen(false);
-      setProjectToDelete(null);
+      setFolderToDelete(null);
     }
   };
 
-  const handleOpenProject = (project: Project) => {
-    setSelectedProject(project);
+  const handleOpenFolder = (folder: Folder) => {
+    setSelectedFolder(folder);
     setSelectedDoc(null);
   };
 
-  const handleBackToProjects = () => {
-    setSelectedProject(null);
-    setProjectDocuments([]);
+  const handleBackToFolders = () => {
+    setSelectedFolder(null);
+    setFolderDocuments([]);
     setSelectedDoc(null);
   };
 
@@ -243,8 +243,8 @@ export default function Projects() {
       setIsEditing(false);
       setSelectedDoc(document);
 
-      if (selectedProject) {
-        await loadProjectDocuments(selectedProject.id);
+      if (selectedFolder) {
+        await loadFolderDocuments(selectedFolder.id);
       }
     } catch (error) {
       console.error("Failed to save document:", error);

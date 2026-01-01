@@ -44,6 +44,36 @@ export type Database = {
         }
         Relationships: []
       }
+      folders: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          status?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       integrations: {
         Row: {
           config_json: Json | null
@@ -79,9 +109,9 @@ export type Database = {
           content_json: Json | null
           content_markdown: string | null
           created_at: string
+          folder_id: string | null
           id: string
           owner_id: string
-          project_id: string | null
           status: string | null
           template_id: string | null
           title: string
@@ -92,9 +122,9 @@ export type Database = {
           content_json?: Json | null
           content_markdown?: string | null
           created_at?: string
+          folder_id?: string | null
           id?: string
           owner_id: string
-          project_id?: string | null
           status?: string | null
           template_id?: string | null
           title: string
@@ -105,9 +135,9 @@ export type Database = {
           content_json?: Json | null
           content_markdown?: string | null
           created_at?: string
+          folder_id?: string | null
           id?: string
           owner_id?: string
-          project_id?: string | null
           status?: string | null
           template_id?: string | null
           title?: string
@@ -117,9 +147,9 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "prd_documents_project_id_fkey"
-            columns: ["project_id"]
+            columns: ["folder_id"]
             isOneToOne: false
-            referencedRelation: "projects"
+            referencedRelation: "folders"
             referencedColumns: ["id"]
           },
           {
@@ -130,36 +160,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      projects: {
-        Row: {
-          created_at: string
-          description: string | null
-          id: string
-          name: string
-          status: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          name: string
-          status?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          name?: string
-          status?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
       }
       templates: {
         Row: {
