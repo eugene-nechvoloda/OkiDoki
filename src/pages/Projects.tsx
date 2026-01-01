@@ -639,8 +639,8 @@ export default function Documents() {
               </div>
             </div>
           </div>
-        ) : selectedProject ? (
-          // Project Documents View
+        ) : selectedFolder ? (
+          // Folder Documents View
           <>
             <div className="px-6 py-4 border-b border-border">
               <div className="flex items-center justify-between mb-4">
@@ -648,18 +648,18 @@ export default function Documents() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={handleBackToProjects}
+                    onClick={handleBackToFolders}
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
                   <div>
                     <h1 className="text-2xl font-semibold flex items-center gap-2">
                       <FolderOpen className="h-6 w-6 text-primary" />
-                      {selectedProject.name}
+                      {selectedFolder.name}
                     </h1>
-                    {selectedProject.description && (
+                    {selectedFolder.description && (
                       <p className="text-sm text-muted-foreground">
-                        {selectedProject.description}
+                        {selectedFolder.description}
                       </p>
                     )}
                   </div>
@@ -676,14 +676,14 @@ export default function Documents() {
 
             <ScrollArea className="flex-1">
               <div className="p-6">
-                {projectDocuments.length === 0 ? (
+                {folderDocuments.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-64 text-center">
                     <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center mb-4">
                       <FileText className="h-8 w-8 text-muted-foreground" />
                     </div>
-                    <h3 className="font-medium mb-2">No documents in this project</h3>
+                    <h3 className="font-medium mb-2">No documents in this folder</h3>
                     <p className="text-sm text-muted-foreground max-w-sm mb-4">
-                      Create PRDs and save them to this project
+                      Create PRDs and save them to this folder
                     </p>
                     <Button
                       onClick={() => navigate("/")}
@@ -695,7 +695,7 @@ export default function Documents() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {projectDocuments.map((doc) => (
+                    {folderDocuments.map((doc) => (
                       <div
                         key={doc.id}
                         className="group p-4 bg-card border border-border rounded-lg hover:border-primary/50 transition-colors cursor-pointer"
@@ -741,61 +741,61 @@ export default function Documents() {
             </ScrollArea>
           </>
         ) : (
-          // Projects List View
+          // Folders List View
           <>
             <div className="px-6 py-4 border-b border-border">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h1 className="text-2xl font-semibold">Projects</h1>
+                  <h1 className="text-2xl font-semibold">Documents</h1>
                   <p className="text-sm text-muted-foreground">
-                    Organize your PRDs into projects
+                    Store your generated PRD's and organise them into projects with the custom folders
                   </p>
                 </div>
-                <Dialog open={showProjectDialog} onOpenChange={setShowProjectDialog}>
+                <Dialog open={showFolderDialog} onOpenChange={setShowFolderDialog}>
                   <DialogTrigger asChild>
                     <Button
                       className="gradient-brand text-primary-foreground"
                       onClick={() => {
-                        setEditingProject(null);
-                        setProjectName("");
-                        setProjectDescription("");
+                        setEditingFolder(null);
+                        setFolderName("");
+                        setFolderDescription("");
                       }}
                     >
                       <Plus className="h-4 w-4 mr-2" />
-                      Create Project
+                      Create Folder
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>
-                        {editingProject ? "Edit Project" : "Create New Project"}
+                        {editingFolder ? "Edit Folder" : "Create New Folder"}
                       </DialogTitle>
                       <DialogDescription>
-                        {editingProject
-                          ? "Update your project details"
-                          : "Create a new project to organize your PRDs"}
+                        {editingFolder
+                          ? "Update your folder details"
+                          : "Create a new folder to organize your PRDs"}
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div>
-                        <Label htmlFor="project-name">Project Name</Label>
+                        <Label htmlFor="folder-name">Folder Name</Label>
                         <Input
-                          id="project-name"
-                          value={projectName}
-                          onChange={(e) => setProjectName(e.target.value)}
-                          placeholder="My Product Project"
+                          id="folder-name"
+                          value={folderName}
+                          onChange={(e) => setFolderName(e.target.value)}
+                          placeholder="My Folder"
                           className="mt-1"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="project-description">
+                        <Label htmlFor="folder-description">
                           Description (Optional)
                         </Label>
                         <Textarea
-                          id="project-description"
-                          value={projectDescription}
-                          onChange={(e) => setProjectDescription(e.target.value)}
-                          placeholder="Describe your project..."
+                          id="folder-description"
+                          value={folderDescription}
+                          onChange={(e) => setFolderDescription(e.target.value)}
+                          placeholder="Describe your folder..."
                           className="mt-1"
                           rows={3}
                         />
@@ -803,15 +803,15 @@ export default function Documents() {
                       <div className="flex justify-end gap-2">
                         <Button
                           variant="outline"
-                          onClick={() => setShowProjectDialog(false)}
+                          onClick={() => setShowFolderDialog(false)}
                         >
                           Cancel
                         </Button>
                         <Button
-                          onClick={handleCreateProject}
+                          onClick={handleCreateFolder}
                           className="gradient-brand text-primary-foreground"
                         >
-                          {editingProject ? "Update Project" : "Create Project"}
+                          {editingFolder ? "Update Folder" : "Create Folder"}
                         </Button>
                       </div>
                     </div>
@@ -823,7 +823,7 @@ export default function Documents() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
-                  placeholder="Search projects..."
+                  placeholder="Search folders..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -837,37 +837,37 @@ export default function Documents() {
                   <div className="flex items-center justify-center h-64">
                     <div className="text-center">
                       <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                      <p className="text-sm text-muted-foreground">Loading projects...</p>
+                      <p className="text-sm text-muted-foreground">Loading folders...</p>
                     </div>
                   </div>
-                ) : filteredProjects.length === 0 ? (
+                ) : filteredFolders.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-64 text-center">
                     <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center mb-4">
                       <FolderKanban className="h-8 w-8 text-muted-foreground" />
                     </div>
-                    <h3 className="font-medium mb-2">No projects yet</h3>
+                    <h3 className="font-medium mb-2">No folders yet</h3>
                     <p className="text-sm text-muted-foreground max-w-sm mb-4">
                       {searchQuery
-                        ? "No projects match your search"
-                        : "Create your first project to organize your PRDs"}
+                        ? "No folders match your search"
+                        : "Create your first folder to organize your PRDs"}
                     </p>
                     {!searchQuery && (
                       <Button
-                        onClick={() => setShowProjectDialog(true)}
+                        onClick={() => setShowFolderDialog(true)}
                         className="gradient-brand text-primary-foreground"
                       >
                         <Plus className="h-4 w-4 mr-2" />
-                        Create Project
+                        Create Folder
                       </Button>
                     )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredProjects.map((project) => (
+                    {filteredFolders.map((folder) => (
                       <div
-                        key={project.id}
+                        key={folder.id}
                         className="group p-5 bg-card border border-border rounded-lg hover:border-primary/50 transition-all cursor-pointer"
-                        onClick={() => handleOpenProject(project)}
+                        onClick={() => handleOpenFolder(folder)}
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-3">
@@ -888,7 +888,7 @@ export default function Documents() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={(e) => {
                                 e.stopPropagation();
-                                handleEditProject(project);
+                                handleEditFolder(folder);
                               }}>
                                 <Edit className="h-4 w-4 mr-2" />
                                 Edit
@@ -897,7 +897,7 @@ export default function Documents() {
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDeleteProject(project.id);
+                                  handleDeleteFolder(folder.id);
                                 }}
                                 className="text-destructive"
                               >
@@ -908,16 +908,16 @@ export default function Documents() {
                           </DropdownMenu>
                         </div>
 
-                        <h3 className="font-semibold text-lg mb-2">{project.name}</h3>
+                        <h3 className="font-semibold text-lg mb-2">{folder.name}</h3>
 
                         <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                          {project.description || "No description"}
+                          {folder.description || "No description"}
                         </p>
 
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            <span>{new Date(project.created_at).toLocaleDateString()}</span>
+                            <span>{new Date(folder.created_at).toLocaleDateString()}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <FileText className="h-3 w-3" />
@@ -938,15 +938,15 @@ export default function Documents() {
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+            <AlertDialogTitle>Delete Folder</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this project? All documents will remain but be unassigned. This action cannot be undone.
+              Are you sure you want to delete this folder? All documents will remain but be unassigned. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmDeleteProject}
+              onClick={confirmDeleteFolder}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
