@@ -13,7 +13,7 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
-      projects: {
+      folders: {
         Row: {
           id: string
           name: string
@@ -82,7 +82,7 @@ export interface Database {
           content_json: Json | null
           status: string | null
           visibility: string | null
-          project_id: string | null
+          folder_id: string | null
           template_id: string | null
           owner_id: string
           created_at: string
@@ -95,7 +95,7 @@ export interface Database {
           content_json?: Json | null
           status?: string | null
           visibility?: string | null
-          project_id?: string | null
+          folder_id?: string | null
           template_id?: string | null
           owner_id: string
           created_at?: string
@@ -108,7 +108,7 @@ export interface Database {
           content_json?: Json | null
           status?: string | null
           visibility?: string | null
-          project_id?: string | null
+          folder_id?: string | null
           template_id?: string | null
           owner_id?: string
           created_at?: string
@@ -210,7 +210,7 @@ export interface Database {
 }
 
 // Helper types for easier usage
-export type Project = Database['public']['Tables']['projects']['Row']
+export type Folder = Database['public']['Tables']['folders']['Row']
 export type Template = Database['public']['Tables']['templates']['Row']
 export type PRDDocument = Database['public']['Tables']['prd_documents']['Row']
 export type Chat = Database['public']['Tables']['chats']['Row']
@@ -218,7 +218,7 @@ export type Integration = Database['public']['Tables']['integrations']['Row']
 export type UsageTracking = Database['public']['Tables']['usage_tracking']['Row']
 
 // Insert types
-export type ProjectInsert = Database['public']['Tables']['projects']['Insert']
+export type FolderInsert = Database['public']['Tables']['folders']['Insert']
 export type TemplateInsert = Database['public']['Tables']['templates']['Insert']
 export type PRDDocumentInsert = Database['public']['Tables']['prd_documents']['Insert']
 export type ChatInsert = Database['public']['Tables']['chats']['Insert']
@@ -226,11 +226,16 @@ export type IntegrationInsert = Database['public']['Tables']['integrations']['In
 export type UsageTrackingInsert = Database['public']['Tables']['usage_tracking']['Insert']
 
 // Update types
-export type ProjectUpdate = Database['public']['Tables']['projects']['Update']
+export type FolderUpdate = Database['public']['Tables']['folders']['Update']
 export type TemplateUpdate = Database['public']['Tables']['templates']['Update']
 export type PRDDocumentUpdate = Database['public']['Tables']['prd_documents']['Update']
 export type ChatUpdate = Database['public']['Tables']['chats']['Update']
 export type IntegrationUpdate = Database['public']['Tables']['integrations']['Update']
+
+// Legacy alias for backward compatibility
+export type Project = Folder
+export type ProjectInsert = FolderInsert
+export type ProjectUpdate = FolderUpdate
 
 // Legacy types for compatibility (can be removed later)
 export type ChatMessage = {

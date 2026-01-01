@@ -15,11 +15,11 @@ interface MainLayoutProps {
   onSelectChat: (chatId: string) => void;
 }
 
-type TabValue = "chats" | "projects" | "templates" | "integrations";
+type TabValue = "chats" | "documents" | "templates" | "integrations";
 
 const TABS = [
   { id: "chats" as const, label: "Chats", icon: MessageSquare },
-  { id: "projects" as const, label: "Projects", icon: FolderKanban },
+  { id: "documents" as const, label: "Documents", icon: FolderKanban },
   { id: "templates" as const, label: "Templates", icon: LayoutTemplate },
   { id: "integrations" as const, label: "Integrations", icon: Plug },
 ];
@@ -37,7 +37,7 @@ export function MainLayout({
 
   // Determine active tab based on current route
   const getActiveTab = (): TabValue => {
-    if (location.pathname === "/projects") return "projects";
+    if (location.pathname === "/projects") return "documents";
     if (location.pathname === "/templates") return "templates";
     if (location.pathname === "/integrations") return "integrations";
     return "chats";
@@ -48,7 +48,7 @@ export function MainLayout({
   const handleTabChange = (value: string) => {
     const tab = value as TabValue;
     if (tab === "chats") navigate("/");
-    else if (tab === "projects") navigate("/projects");
+    else if (tab === "documents") navigate("/projects");
     else if (tab === "templates") navigate("/templates");
     else if (tab === "integrations") navigate("/integrations");
   };
