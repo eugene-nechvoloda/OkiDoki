@@ -15,7 +15,7 @@ serve(async (req) => {
   }
 
   try {
-    const { title, content, teamId, projectId } = await req.json();
+    const { title, content, teamId, projectId, guestIntegration } = await req.json();
 
     if (!title || !content) {
       return new Response(
@@ -24,50 +24,63 @@ serve(async (req) => {
       );
     }
 
-    // Initialize Supabase
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    let LINEAR_API_KEY: string | undefined;
+    let finalTeamId = teamId;
+    let finalProjectId = projectId;
 
-    // Get user
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Authorization required" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    // Check for guest mode (integration details in payload)
+    if (guestIntegration?.api_key) {
+      console.log("Using guest integration from payload");
+      LINEAR_API_KEY = guestIntegration.api_key;
+      finalTeamId = teamId || guestIntegration.team_id;
+      finalProjectId = projectId || guestIntegration.project_id;
+    } else {
+      // Authenticated mode - fetch from database
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader || authHeader.includes("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6")) {
+        // No auth or anon key - require guest integration
+        return new Response(
+          JSON.stringify({ error: "Linear integration required. Please connect Linear first or provide guest integration." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: { user }, error: authError } = await supabase.auth.getUser(
+        authHeader.replace("Bearer ", "")
       );
+
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ error: "Invalid authorization" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get Linear integration
+      const { data: integration, error: integrationError } = await supabase
+        .from("integrations")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("provider", "linear")
+        .eq("status", "connected")
+        .single();
+
+      if (integrationError || !integration) {
+        return new Response(
+          JSON.stringify({ error: "Linear integration not found. Please connect Linear first." }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const config = integration.config_json as Record<string, any>;
+      LINEAR_API_KEY = config?.api_key;
+      finalTeamId = teamId || config.team_id;
+      finalProjectId = projectId || config.project_id;
     }
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
-
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Invalid authorization" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Get Linear integration
-    const { data: integration, error: integrationError } = await supabase
-      .from("integrations")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("provider", "linear")
-      .eq("status", "connected")
-      .single();
-
-    if (integrationError || !integration) {
-      return new Response(
-        JSON.stringify({ error: "Linear integration not found. Please connect Linear first." }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Get API key from config_json (where it's actually stored)
-    const config = integration.config_json as Record<string, any>;
-    const LINEAR_API_KEY = config?.api_key;
     
     if (!LINEAR_API_KEY) {
       return new Response(
@@ -75,9 +88,6 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    
-    const finalTeamId = teamId || config.team_id;
-    const finalProjectId = projectId || config.project_id;
 
     console.log("Starting MCP-powered export...");
 

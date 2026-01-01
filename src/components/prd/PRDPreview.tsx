@@ -339,12 +339,16 @@ export function PRDPreview({
 
       // Use MCP-powered intelligent export for Linear
       if (provider === 'linear') {
+        const integrationConfig = integration?.config_json as Record<string, unknown>;
+        
         const { data, error } = await supabase.functions.invoke("export-to-linear-mcp", {
           body: {
             title: title || "PRD Document",
             content: currentContent,
-            teamId: (integration?.config_json as Record<string, unknown>)?.team_id,
-            projectId: (integration?.config_json as Record<string, unknown>)?.project_id,
+            teamId: integrationConfig?.team_id,
+            projectId: integrationConfig?.project_id,
+            // Pass full integration for guest mode (includes api_key)
+            guestIntegration: integrationConfig,
           },
         });
 
