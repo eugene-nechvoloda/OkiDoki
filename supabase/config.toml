@@ -24,3 +24,6 @@ verify_jwt = false
 
 [functions.export-to-integration]
 verify_jwt = false
+
+[functions.export-to-linear-mcp]
+verify_jwt = false
