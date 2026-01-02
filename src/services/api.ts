@@ -855,7 +855,10 @@ export async function createFolder(
   const authed = await isAuthenticated();
   const userId = await getCurrentUserId();
 
+  console.log('📁 createFolder called:', { authed, userId, data });
+
   if (!authed) {
+    console.log('📁 Saving folder to localStorage (guest mode)');
     const now = new Date().toISOString();
     const folder: Folder = {
       id: crypto.randomUUID(),
@@ -872,6 +875,8 @@ export async function createFolder(
     );
     writeGuestJson(GUEST_STORAGE_KEYS.folders, [folder, ...folders]);
     return { folder };
+  } else {
+    console.log('📁 Saving folder to database (authenticated mode)');
   }
 
   const { data: folder, error } = await supabase
