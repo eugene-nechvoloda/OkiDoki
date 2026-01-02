@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,7 @@ import {
   Folder,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useChat } from "@/hooks/useChat";
 import type { Backlog, BacklogItem } from "@/types/backlog";
 
 const BACKLOG_STORAGE_KEY = "okidoki_backlogs";
@@ -23,6 +25,8 @@ const BACKLOG_STORAGE_KEY = "okidoki_backlogs";
 export default function BacklogPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { chats, currentChat, createNewChat, selectChat } = useChat();
+  
   const [backlogs, setBacklogs] = useState<Backlog[]>([]);
   const [selectedBacklog, setSelectedBacklog] = useState<Backlog | null>(null);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
@@ -266,81 +270,88 @@ export default function BacklogPage() {
   // List view - show all backlogs
   if (!selectedBacklog) {
     return (
-      <div className="h-full flex flex-col bg-background">
-        <div className="px-6 py-4 border-b border-border">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <ListTodo className="h-5 w-5 text-primary" />
-              <h1 className="text-lg font-semibold">Backlogs</h1>
+      <MainLayout
+        chats={chats}
+        currentChatId={currentChat?.id}
+        onNewChat={createNewChat}
+        onSelectChat={selectChat}
+      >
+        <div className="h-full flex flex-col bg-background">
+          <div className="px-6 py-4 border-b border-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <ListTodo className="h-5 w-5 text-primary" />
+                <h1 className="text-lg font-semibold">Backlogs</h1>
+              </div>
             </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Generated backlogs from your PRDs
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Generated backlogs from your PRDs
-          </p>
-        </div>
 
-        <ScrollArea className="flex-1">
-          <div className="p-6">
-            {backlogs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-                  <ListTodo className="h-8 w-8 text-muted-foreground" />
+          <ScrollArea className="flex-1">
+            <div className="p-6">
+              {backlogs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+                    <ListTodo className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-medium text-lg mb-2">No backlogs yet</h3>
+                  <p className="text-sm text-muted-foreground max-w-[300px]">
+                    Generate a backlog from your PRD using the "Generate Backlog" option in the PRD preview menu.
+                  </p>
                 </div>
-                <h3 className="font-medium text-lg mb-2">No backlogs yet</h3>
-                <p className="text-sm text-muted-foreground max-w-[300px]">
-                  Generate a backlog from your PRD using the "Generate Backlog" option in the PRD preview menu.
-                </p>
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                {backlogs.map(backlog => (
-                  <Card
-                    key={backlog.id}
-                    className="cursor-pointer hover:border-primary/50 transition-colors group"
-                    onClick={() => {
-                      setSelectedBacklog(backlog);
-                      setSelectedItem(null);
-                      setBreadcrumbs([]);
-                    }}
-                  >
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-2">
-                          <Folder className="h-4 w-4 text-primary" />
-                          <CardTitle className="text-base">{backlog.prdTitle}</CardTitle>
+              ) : (
+                <div className="grid gap-4">
+                  {backlogs.map(backlog => (
+                    <Card
+                      key={backlog.id}
+                      className="cursor-pointer hover:border-primary/50 transition-colors group"
+                      onClick={() => {
+                        setSelectedBacklog(backlog);
+                        setSelectedItem(null);
+                        setBreadcrumbs([]);
+                      }}
+                    >
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-2">
+                            <Folder className="h-4 w-4 text-primary" />
+                            <CardTitle className="text-base">{backlog.prdTitle}</CardTitle>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteBacklog(backlog.id);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteBacklog(backlog.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <ListTodo className="h-4 w-4" />
-                          {backlog.items.length} items
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          {new Date(backlog.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-      </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <ListTodo className="h-4 w-4" />
+                            {backlog.items.length} items
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-4 w-4" />
+                            {new Date(backlog.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      </MainLayout>
     );
   }
 
@@ -350,92 +361,99 @@ export default function BacklogPage() {
     : getChildren(selectedBacklog.items, undefined);
 
   return (
-    <div className="h-full flex flex-col bg-background">
-      {/* Header with Breadcrumbs */}
-      <div className="px-6 py-4 border-b border-border">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            onClick={() => {
-              if (selectedItem) {
-                // Go up one level
-                if (breadcrumbs.length > 0) {
-                  const parentItem = breadcrumbs[breadcrumbs.length - 1];
-                  navigateToItem(parentItem, selectedBacklog.items);
+    <MainLayout
+      chats={chats}
+      currentChatId={currentChat?.id}
+      onNewChat={createNewChat}
+      onSelectChat={selectChat}
+    >
+      <div className="h-full flex flex-col bg-background">
+        {/* Header with Breadcrumbs */}
+        <div className="px-6 py-4 border-b border-border">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={() => {
+                if (selectedItem) {
+                  // Go up one level
+                  if (breadcrumbs.length > 0) {
+                    const parentItem = breadcrumbs[breadcrumbs.length - 1];
+                    navigateToItem(parentItem, selectedBacklog.items);
+                  } else {
+                    setSelectedItem(null);
+                    setBreadcrumbs([]);
+                  }
                 } else {
+                  setSelectedBacklog(null);
+                }
+              }}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            
+            {/* Breadcrumb Navigation */}
+            <div className="flex items-center gap-1 text-sm flex-wrap">
+              <button
+                onClick={() => {
                   setSelectedItem(null);
                   setBreadcrumbs([]);
-                }
-              } else {
-                setSelectedBacklog(null);
-              }
-            }}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+                }}
+                className="text-primary hover:underline font-medium"
+              >
+                {selectedBacklog.prdTitle}
+              </button>
+              
+              {breadcrumbs.map((crumb) => (
+                <div key={crumb.id} className="flex items-center gap-1">
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <button
+                    onClick={() => navigateToItem(crumb, selectedBacklog.items)}
+                    className="text-primary hover:underline"
+                  >
+                    {crumb.title}
+                  </button>
+                </div>
+              ))}
+              
+              {selectedItem && (
+                <div className="flex items-center gap-1">
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-foreground font-medium">{selectedItem.title}</span>
+                </div>
+              )}
+            </div>
+          </div>
           
-          {/* Breadcrumb Navigation */}
-          <div className="flex items-center gap-1 text-sm flex-wrap">
-            <button
-              onClick={() => {
-                setSelectedItem(null);
-                setBreadcrumbs([]);
-              }}
-              className="text-primary hover:underline font-medium"
-            >
-              {selectedBacklog.prdTitle}
-            </button>
-            
-            {breadcrumbs.map((crumb) => (
-              <div key={crumb.id} className="flex items-center gap-1">
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                <button
-                  onClick={() => navigateToItem(crumb, selectedBacklog.items)}
-                  className="text-primary hover:underline"
-                >
-                  {crumb.title}
-                </button>
-              </div>
-            ))}
-            
-            {selectedItem && (
-              <div className="flex items-center gap-1">
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                <span className="text-foreground font-medium">{selectedItem.title}</span>
+          {!selectedItem && (
+            <p className="text-sm text-muted-foreground mt-2">
+              {selectedBacklog.items.length} total items • Created{" "}
+              {new Date(selectedBacklog.createdAt).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+
+        <ScrollArea className="flex-1">
+          <div className="p-6">
+            {selectedItem ? (
+              // Show item detail and its children
+              renderItemDetail(selectedItem, selectedBacklog.items)
+            ) : (
+              // Show root level items
+              <div className="space-y-1">
+                {currentItems.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No items at this level
+                  </div>
+                ) : (
+                  currentItems.map(item => renderBacklogItemRow(item, selectedBacklog.items))
+                )}
               </div>
             )}
           </div>
-        </div>
-        
-        {!selectedItem && (
-          <p className="text-sm text-muted-foreground mt-2">
-            {selectedBacklog.items.length} total items • Created{" "}
-            {new Date(selectedBacklog.createdAt).toLocaleDateString()}
-          </p>
-        )}
+        </ScrollArea>
       </div>
-
-      <ScrollArea className="flex-1">
-        <div className="p-6">
-          {selectedItem ? (
-            // Show item detail and its children
-            renderItemDetail(selectedItem, selectedBacklog.items)
-          ) : (
-            // Show root level items
-            <div className="space-y-1">
-              {currentItems.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No items at this level
-                </div>
-              ) : (
-                currentItems.map(item => renderBacklogItemRow(item, selectedBacklog.items))
-              )}
-            </div>
-          )}
-        </div>
-      </ScrollArea>
-    </div>
+    </MainLayout>
   );
 }
