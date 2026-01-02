@@ -17,10 +17,10 @@ import { BUILT_IN_TEMPLATES } from "@/data/templates";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const GUEST_STORAGE_KEYS = {
-  chats: "okidoki_guest_chats",
-  folders: "okidoki_guest_folders",
-  templates: "okidoki_guest_templates",
-  documents: "okidoki_guest_documents",
+  chats: "okidoki_chats",
+  folders: "okidoki_folders",
+  templates: "okidoki_templates",
+  documents: "okidoki_documents",
 } as const;
 
 async function isAuthenticated(): Promise<boolean> {
