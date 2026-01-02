@@ -1,10 +1,17 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   ChevronDown,
   ChevronRight,
@@ -15,8 +22,9 @@ import {
   ArrowLeft,
   FolderOpen,
   Folder,
-  Upload,
   Loader2,
+  Check,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChat } from "@/hooks/useChat";
@@ -37,6 +45,16 @@ const LinearLogo = ({ className }: { className?: string }) => (
 
 const BACKLOG_STORAGE_KEY = "okidoki_backlogs";
 
+interface ExportProgress {
+  current: number;
+  total: number;
+  currentItem: string;
+  createdItems: Array<{ title: string; identifier: string }>;
+  isComplete: boolean;
+  hasError: boolean;
+  errorMessage?: string;
+}
+
 export default function BacklogPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -49,6 +67,8 @@ export default function BacklogPage() {
   const [breadcrumbs, setBreadcrumbs] = useState<BacklogItem[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Load backlogs from localStorage
   useEffect(() => {
@@ -73,7 +93,7 @@ export default function BacklogPage() {
     return integrations.find((i) => i.provider === "linear");
   };
 
-  // Export backlog to Linear
+  // Export backlog to Linear with streaming progress
   const handleExportToLinear = async (backlog: Backlog) => {
     const integration = getLinearIntegration();
     
@@ -95,40 +115,127 @@ export default function BacklogPage() {
     }
 
     setIsExporting(true);
+    setExportProgress({
+      current: 0,
+      total: backlog.items.length,
+      currentItem: "Starting export...",
+      createdItems: [],
+      isComplete: false,
+      hasError: false,
+    });
+
+    abortControllerRef.current = new AbortController();
+
     try {
-      const { data, error } = await supabase.functions.invoke("export-backlog-to-linear", {
-        body: {
-          backlogTitle: backlog.prdTitle,
-          items: backlog.items,
-          guestIntegration: {
-            api_key: config.api_key,
-            team_id: config.team_id,
-            project_id: config.project_id || null,
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-backlog-to-linear`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-        },
-      });
+          body: JSON.stringify({
+            backlogTitle: backlog.prdTitle,
+            items: backlog.items,
+            guestIntegration: {
+              api_key: config.api_key,
+              team_id: config.team_id,
+              project_id: config.project_id || null,
+            },
+          }),
+          signal: abortControllerRef.current.signal,
+        }
+      );
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
 
-      if (data?.success) {
-        toast.success(`Exported ${data.totalIssues} issues to Linear`, {
-          description: "Your backlog has been exported successfully.",
-        });
-      } else if (data?.errors?.length > 0) {
-        toast.warning(`Exported with some errors`, {
-          description: `${data.totalIssues} issues created, ${data.errors.length} failed.`,
-        });
-      } else {
-        throw new Error(data?.error || "Export failed");
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const event = JSON.parse(line.slice(6));
+              
+              if (event.type === "progress") {
+                setExportProgress(prev => ({
+                  current: event.current || prev?.current || 0,
+                  total: event.total || prev?.total || 0,
+                  currentItem: event.item || "",
+                  createdItems: event.identifier && event.success
+                    ? [...(prev?.createdItems || []), { title: event.item, identifier: event.identifier }]
+                    : prev?.createdItems || [],
+                  isComplete: false,
+                  hasError: false,
+                }));
+              } else if (event.type === "complete") {
+                setExportProgress(prev => ({
+                  ...prev!,
+                  isComplete: true,
+                  hasError: (event.result?.errors?.length || 0) > 0,
+                }));
+                
+                if (event.result?.success) {
+                  toast.success(`Exported ${event.result.totalIssues} issues to Linear`);
+                } else if (event.result?.errors?.length > 0) {
+                  toast.warning(`Exported with some errors`, {
+                    description: `${event.result.totalIssues} created, ${event.result.errors.length} failed.`,
+                  });
+                }
+              } else if (event.type === "error") {
+                setExportProgress(prev => ({
+                  ...prev!,
+                  isComplete: true,
+                  hasError: true,
+                  errorMessage: event.error,
+                }));
+                toast.error("Export failed", { description: event.error });
+              }
+            } catch (e) {
+              console.error("Failed to parse SSE event:", e);
+            }
+          }
+        }
       }
     } catch (error) {
-      console.error("Export error:", error);
-      toast.error("Export failed", {
-        description: error instanceof Error ? error.message : "Unknown error occurred",
-      });
+      if ((error as Error).name !== "AbortError") {
+        console.error("Export error:", error);
+        setExportProgress(prev => prev ? {
+          ...prev,
+          isComplete: true,
+          hasError: true,
+          errorMessage: error instanceof Error ? error.message : "Unknown error",
+        } : null);
+        toast.error("Export failed", {
+          description: error instanceof Error ? error.message : "Unknown error occurred",
+        });
+      }
     } finally {
       setIsExporting(false);
+      abortControllerRef.current = null;
     }
+  };
+
+  const closeProgressDialog = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setExportProgress(null);
   };
 
   // Handle incoming backlog from navigation state - only after initialization
@@ -350,6 +457,85 @@ export default function BacklogPage() {
     );
   };
 
+  // Progress Dialog Component
+  const renderProgressDialog = () => (
+    <Dialog open={exportProgress !== null} onOpenChange={(open) => !open && closeProgressDialog()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <LinearLogo className="h-5 w-5" />
+            Exporting to Linear
+          </DialogTitle>
+        </DialogHeader>
+        
+        {exportProgress && (
+          <div className="space-y-4">
+            {/* Progress Bar */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">
+                  {exportProgress.isComplete ? "Complete" : "Creating issues..."}
+                </span>
+                <span className="font-medium">
+                  {exportProgress.current} / {exportProgress.total}
+                </span>
+              </div>
+              <Progress 
+                value={(exportProgress.current / exportProgress.total) * 100} 
+                className="h-2"
+              />
+            </div>
+
+            {/* Current Item */}
+            {!exportProgress.isComplete && (
+              <div className="flex items-center gap-2 text-sm">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span className="truncate text-muted-foreground">
+                  {exportProgress.currentItem}
+                </span>
+              </div>
+            )}
+
+            {/* Created Items List */}
+            {exportProgress.createdItems.length > 0 && (
+              <ScrollArea className="h-[200px] rounded-md border p-3">
+                <div className="space-y-2">
+                  {exportProgress.createdItems.map((item, idx) => (
+                    <div 
+                      key={idx}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <Check className="h-4 w-4 text-green-500 shrink-0" />
+                      <Badge variant="outline" className="shrink-0 font-mono text-xs">
+                        {item.identifier}
+                      </Badge>
+                      <span className="truncate text-foreground">{item.title}</span>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+
+            {/* Error State */}
+            {exportProgress.hasError && exportProgress.errorMessage && (
+              <div className="flex items-center gap-2 text-sm text-destructive">
+                <X className="h-4 w-4" />
+                <span>{exportProgress.errorMessage}</span>
+              </div>
+            )}
+
+            {/* Complete State */}
+            {exportProgress.isComplete && (
+              <Button onClick={closeProgressDialog} className="w-full">
+                {exportProgress.hasError ? "Close" : "Done"}
+              </Button>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+
   // List view - show all backlogs
   if (!selectedBacklog) {
     return (
@@ -453,6 +639,7 @@ export default function BacklogPage() {
             </div>
           </ScrollArea>
         </div>
+        {renderProgressDialog()}
       </MainLayout>
     );
   }
@@ -576,6 +763,7 @@ export default function BacklogPage() {
           </div>
         </ScrollArea>
       </div>
+      {renderProgressDialog()}
     </MainLayout>
   );
 }

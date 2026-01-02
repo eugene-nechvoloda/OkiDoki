@@ -22,6 +22,22 @@ interface LinearIssue {
   url?: string;
 }
 
+interface ProgressEvent {
+  type: "progress" | "complete" | "error";
+  current?: number;
+  total?: number;
+  item?: string;
+  identifier?: string;
+  success?: boolean;
+  result?: {
+    success: boolean;
+    createdIssues: LinearIssue[];
+    totalIssues: number;
+    errors: string[];
+  };
+  error?: string;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -109,21 +125,48 @@ serve(async (req) => {
 
     console.log(`Exporting backlog "${backlogTitle}" with ${items.length} items to Linear...`);
 
-    // Export backlog items to Linear
-    const result = await exportBacklogToLinear({
-      apiKey: LINEAR_API_KEY,
-      teamId: finalTeamId,
-      projectId: finalProjectId,
-      backlogTitle,
-      items,
+    // Create a streaming response
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        
+        const sendEvent = (event: ProgressEvent) => {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        };
+
+        try {
+          const result = await exportBacklogToLinearWithProgress({
+            apiKey: LINEAR_API_KEY!,
+            teamId: finalTeamId,
+            projectId: finalProjectId,
+            backlogTitle,
+            items,
+            onProgress: sendEvent,
+          });
+
+          sendEvent({
+            type: "complete",
+            result,
+          });
+        } catch (error) {
+          sendEvent({
+            type: "error",
+            error: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
+
+        controller.close();
+      },
     });
 
-    console.log("Export result:", result);
-
-    return new Response(
-      JSON.stringify(result),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(stream, {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    });
   } catch (error) {
     console.error("Error exporting backlog to Linear:", error);
     return new Response(
@@ -134,23 +177,23 @@ serve(async (req) => {
 });
 
 /**
- * Export backlog items to Linear as hierarchical issues
+ * Export backlog items to Linear with progress callbacks
  */
-async function exportBacklogToLinear(options: {
+async function exportBacklogToLinearWithProgress(options: {
   apiKey: string;
   teamId: string;
   projectId?: string;
   backlogTitle: string;
   items: BacklogItem[];
+  onProgress: (event: ProgressEvent) => void;
 }) {
-  const { apiKey, teamId, projectId, backlogTitle, items } = options;
+  const { apiKey, teamId, projectId, items, onProgress } = options;
 
   const result = {
     success: false,
     createdIssues: [] as LinearIssue[],
     totalIssues: 0,
     errors: [] as string[],
-    log: [] as string[],
   };
 
   // Map backlog item IDs to Linear issue IDs
@@ -158,10 +201,19 @@ async function exportBacklogToLinear(options: {
 
   // Sort items by depth to ensure parents are created before children
   const sortedItems = [...items].sort((a, b) => a.depth - b.depth);
+  const total = sortedItems.length;
 
-  result.log.push(`Starting export of ${sortedItems.length} backlog items...`);
+  for (let i = 0; i < sortedItems.length; i++) {
+    const item = sortedItems[i];
+    
+    // Send progress event
+    onProgress({
+      type: "progress",
+      current: i + 1,
+      total,
+      item: item.title,
+    });
 
-  for (const item of sortedItems) {
     try {
       // Build description with requirements
       let description = item.description || "";
@@ -191,18 +243,26 @@ async function exportBacklogToLinear(options: {
       if (issue) {
         itemToIssueMap.set(item.id, issue.id);
         result.createdIssues.push(issue);
-        result.log.push(`✓ Created: ${issue.identifier} - ${item.title}`);
+        
+        // Send success progress
+        onProgress({
+          type: "progress",
+          current: i + 1,
+          total,
+          item: item.title,
+          identifier: issue.identifier,
+          success: true,
+        });
       }
     } catch (error) {
       const errorMsg = `Failed to create "${item.title}": ${error instanceof Error ? error.message : "Unknown error"}`;
       result.errors.push(errorMsg);
-      result.log.push(`✗ ${errorMsg}`);
+      console.error(errorMsg);
     }
   }
 
   result.totalIssues = result.createdIssues.length;
   result.success = result.errors.length === 0 && result.createdIssues.length > 0;
-  result.log.push(`Export complete: ${result.totalIssues}/${sortedItems.length} issues created`);
 
   return result;
 }
