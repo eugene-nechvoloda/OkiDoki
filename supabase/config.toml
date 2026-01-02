@@ -30,3 +30,6 @@ verify_jwt = false
 
 [functions.generate-backlog]
 verify_jwt = false
+
+[functions.export-backlog-to-linear]
+verify_jwt = false

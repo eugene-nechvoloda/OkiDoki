@@ -15,10 +15,25 @@ import {
   ArrowLeft,
   FolderOpen,
   Folder,
+  Upload,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChat } from "@/hooks/useChat";
+import { supabase } from "@/integrations/supabase/client";
+import { readGuestJson } from "@/services/guestStorage";
+import { toast } from "sonner";
 import type { Backlog, BacklogItem } from "@/types/backlog";
+
+// Linear logo component
+const LinearLogo = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 100 100" fill="currentColor">
+    <path d="M1.22541 61.5228c-.2225-.9485.90748-1.5459 1.59638-.857L39.3342 97.1782c.6889.6889.0915 1.8189-.857 1.5765L1.22541 61.5228Z" />
+    <path fillRule="evenodd" clipRule="evenodd" d="M.00842114 36.0092c-.15843.88-.02219 1.7931.40135 2.5869l22.2536 43.9074c.4237.836 1.1077 1.5075 1.9538 1.9187l43.9074 22.2536c.7939.4236 1.7069.5597 2.587.4014.0122-.0022.0245-.0045.0366-.0068l-71.2028-71.2026c-.00218.0116-.00435.0232-.00648.0347Z" />
+    <path d="M96.6827 56.8819c-.2224.9485-.6889.0915-1.5764-.857L58.5939 19.5125c-.6889-.6889-.0915-1.81895.857-1.57648l37.2518 37.9428c0 0 .0799.9381-.02 1.0031Z" />
+    <path fillRule="evenodd" clipRule="evenodd" d="M99.9916 63.9908c.1584-.88.0222-1.793-.4014-2.587L77.337 17.4964c-.4112-.8462-1.0827-1.5301-1.9187-1.9538L31.5109 0.410296c-.7938-.42354-1.7068-.55977-2.5869-.40135-.0116.00212-.0231.00429-.0347.00647l71.2027 71.2027c.0023-.0121.0046-.0243.0068-.0366L99.9916 63.9908Z" />
+  </svg>
+);
 
 const BACKLOG_STORAGE_KEY = "okidoki_backlogs";
 
@@ -33,6 +48,7 @@ export default function BacklogPage() {
   const [selectedItem, setSelectedItem] = useState<BacklogItem | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<BacklogItem[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Load backlogs from localStorage
   useEffect(() => {
@@ -47,6 +63,73 @@ export default function BacklogPage() {
     }
     setIsInitialized(true);
   }, []);
+
+  // Get Linear integration from guest storage
+  const getLinearIntegration = () => {
+    const integrations = readGuestJson<Array<{ provider: string; config_json: Record<string, unknown> }>>(
+      "okidoki_integrations",
+      []
+    );
+    return integrations.find((i) => i.provider === "linear");
+  };
+
+  // Export backlog to Linear
+  const handleExportToLinear = async (backlog: Backlog) => {
+    const integration = getLinearIntegration();
+    
+    if (!integration?.config_json?.api_key) {
+      toast.error("Linear not connected", {
+        description: "Please connect Linear in the Integrations page first.",
+      });
+      navigate("/integrations");
+      return;
+    }
+
+    const config = integration.config_json;
+    if (!config.team_id) {
+      toast.error("No team selected", {
+        description: "Please select a Linear team in the Integrations page.",
+      });
+      navigate("/integrations");
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("export-backlog-to-linear", {
+        body: {
+          backlogTitle: backlog.prdTitle,
+          items: backlog.items,
+          guestIntegration: {
+            api_key: config.api_key,
+            team_id: config.team_id,
+            project_id: config.project_id || null,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success(`Exported ${data.totalIssues} issues to Linear`, {
+          description: "Your backlog has been exported successfully.",
+        });
+      } else if (data?.errors?.length > 0) {
+        toast.warning(`Exported with some errors`, {
+          description: `${data.totalIssues} issues created, ${data.errors.length} failed.`,
+        });
+      } else {
+        throw new Error(data?.error || "Export failed");
+      }
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Export failed", {
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Handle incoming backlog from navigation state - only after initialization
   useEffect(() => {
@@ -319,17 +402,36 @@ export default function BacklogPage() {
                             <Folder className="h-4 w-4 text-primary" />
                             <CardTitle className="text-base">{backlog.prdTitle}</CardTitle>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteBacklog(backlog.id);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                              disabled={isExporting}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExportToLinear(backlog);
+                              }}
+                              title="Export to Linear"
+                            >
+                              {isExporting ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <LinearLogo className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteBacklog(backlog.id);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -370,60 +472,80 @@ export default function BacklogPage() {
       <div className="h-full flex flex-col bg-background">
         {/* Header with Breadcrumbs */}
         <div className="px-6 py-4 border-b border-border">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              onClick={() => {
-                if (selectedItem) {
-                  // Go up one level
-                  if (breadcrumbs.length > 0) {
-                    const parentItem = breadcrumbs[breadcrumbs.length - 1];
-                    navigateToItem(parentItem, selectedBacklog.items);
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => {
+                  if (selectedItem) {
+                    // Go up one level
+                    if (breadcrumbs.length > 0) {
+                      const parentItem = breadcrumbs[breadcrumbs.length - 1];
+                      navigateToItem(parentItem, selectedBacklog.items);
+                    } else {
+                      setSelectedItem(null);
+                      setBreadcrumbs([]);
+                    }
                   } else {
+                    setSelectedBacklog(null);
+                  }
+                }}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              
+              {/* Breadcrumb Navigation */}
+              <div className="flex items-center gap-1 text-sm flex-wrap">
+                <button
+                  onClick={() => {
                     setSelectedItem(null);
                     setBreadcrumbs([]);
-                  }
-                } else {
-                  setSelectedBacklog(null);
-                }
-              }}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            
-            {/* Breadcrumb Navigation */}
-            <div className="flex items-center gap-1 text-sm flex-wrap">
-              <button
-                onClick={() => {
-                  setSelectedItem(null);
-                  setBreadcrumbs([]);
-                }}
-                className="text-primary hover:underline font-medium"
-              >
-                {selectedBacklog.prdTitle}
-              </button>
-              
-              {breadcrumbs.map((crumb) => (
-                <div key={crumb.id} className="flex items-center gap-1">
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  <button
-                    onClick={() => navigateToItem(crumb, selectedBacklog.items)}
-                    className="text-primary hover:underline"
-                  >
-                    {crumb.title}
-                  </button>
-                </div>
-              ))}
-              
-              {selectedItem && (
-                <div className="flex items-center gap-1">
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-foreground font-medium">{selectedItem.title}</span>
-                </div>
-              )}
+                  }}
+                  className="text-primary hover:underline font-medium"
+                >
+                  {selectedBacklog.prdTitle}
+                </button>
+                
+                {breadcrumbs.map((crumb) => (
+                  <div key={crumb.id} className="flex items-center gap-1">
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <button
+                      onClick={() => navigateToItem(crumb, selectedBacklog.items)}
+                      className="text-primary hover:underline"
+                    >
+                      {crumb.title}
+                    </button>
+                  </div>
+                ))}
+                
+                {selectedItem && (
+                  <div className="flex items-center gap-1">
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-foreground font-medium">{selectedItem.title}</span>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Export Button */}
+            {!selectedItem && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isExporting}
+                onClick={() => handleExportToLinear(selectedBacklog)}
+                className="gap-2"
+              >
+                {isExporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LinearLogo className="h-4 w-4" />
+                )}
+                Export to Linear
+              </Button>
+            )}
           </div>
           
           {!selectedItem && (
