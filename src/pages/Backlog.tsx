@@ -458,83 +458,140 @@ export default function BacklogPage() {
   };
 
   // Progress Dialog Component
-  const renderProgressDialog = () => (
-    <Dialog open={exportProgress !== null} onOpenChange={(open) => !open && closeProgressDialog()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <LinearLogo className="h-5 w-5" />
-            Exporting to Linear
-          </DialogTitle>
-        </DialogHeader>
-        
-        {exportProgress && (
-          <div className="space-y-4">
-            {/* Progress Bar */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">
-                  {exportProgress.isComplete ? "Complete" : "Creating issues..."}
-                </span>
-                <span className="font-medium">
-                  {exportProgress.current} / {exportProgress.total}
-                </span>
-              </div>
-              <Progress 
-                value={(exportProgress.current / exportProgress.total) * 100} 
-                className="h-2"
-              />
-            </div>
-
-            {/* Current Item */}
-            {!exportProgress.isComplete && (
-              <div className="flex items-center gap-2 text-sm">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <span className="truncate text-muted-foreground">
-                  {exportProgress.currentItem}
-                </span>
-              </div>
-            )}
-
-            {/* Created Items List */}
-            {exportProgress.createdItems.length > 0 && (
-              <ScrollArea className="h-[200px] rounded-md border p-3">
-                <div className="space-y-2">
-                  {exportProgress.createdItems.map((item, idx) => (
-                    <div 
-                      key={idx}
-                      className="flex items-center gap-2 text-sm"
-                    >
-                      <Check className="h-4 w-4 text-green-500 shrink-0" />
-                      <Badge variant="outline" className="shrink-0 font-mono text-xs">
-                        {item.identifier}
-                      </Badge>
-                      <span className="truncate text-foreground">{item.title}</span>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-
-            {/* Error State */}
-            {exportProgress.hasError && exportProgress.errorMessage && (
-              <div className="flex items-center gap-2 text-sm text-destructive">
-                <X className="h-4 w-4" />
-                <span>{exportProgress.errorMessage}</span>
-              </div>
-            )}
-
-            {/* Complete State */}
-            {exportProgress.isComplete && (
-              <Button onClick={closeProgressDialog} className="w-full">
-                {exportProgress.hasError ? "Close" : "Done"}
-              </Button>
-            )}
+  const renderProgressDialog = () => {
+    const getStatusIcon = () => {
+      if (!exportProgress) return null;
+      if (exportProgress.hasError) {
+        return (
+          <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
+            <X className="h-6 w-6 text-destructive" />
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
+        );
+      }
+      if (exportProgress.isComplete) {
+        return (
+          <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
+            <Check className="h-6 w-6 text-green-500" />
+          </div>
+        );
+      }
+      return (
+        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 text-primary animate-spin" />
+        </div>
+      );
+    };
+
+    const getStatusText = () => {
+      if (!exportProgress) return "";
+      if (exportProgress.hasError) return "Export Failed";
+      if (exportProgress.isComplete) return "Export Complete";
+      return "Exporting...";
+    };
+
+    const getStatusColor = () => {
+      if (!exportProgress) return "text-foreground";
+      if (exportProgress.hasError) return "text-destructive";
+      if (exportProgress.isComplete) return "text-green-500";
+      return "text-primary";
+    };
+
+    return (
+      <Dialog open={exportProgress !== null} onOpenChange={(open) => !open && closeProgressDialog()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LinearLogo className="h-5 w-5" />
+              Exporting to Linear
+            </DialogTitle>
+          </DialogHeader>
+          
+          {exportProgress && (
+            <div className="space-y-4">
+              {/* Status Indicator */}
+              <div className="flex flex-col items-center gap-3 py-2">
+                {getStatusIcon()}
+                <span className={cn("font-medium text-lg", getStatusColor())}>
+                  {getStatusText()}
+                </span>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {exportProgress.isComplete 
+                      ? (exportProgress.hasError ? "Stopped" : "All issues created") 
+                      : "Creating issues..."}
+                  </span>
+                  <span className="font-medium">
+                    {exportProgress.current} / {exportProgress.total}
+                  </span>
+                </div>
+                <Progress 
+                  value={(exportProgress.current / exportProgress.total) * 100} 
+                  className={cn(
+                    "h-2",
+                    exportProgress.hasError && "[&>div]:bg-destructive",
+                    exportProgress.isComplete && !exportProgress.hasError && "[&>div]:bg-green-500"
+                  )}
+                />
+              </div>
+
+              {/* Current Item */}
+              {!exportProgress.isComplete && (
+                <div className="flex items-center gap-2 text-sm bg-muted/50 rounded-lg p-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+                  <span className="truncate text-muted-foreground">
+                    {exportProgress.currentItem}
+                  </span>
+                </div>
+              )}
+
+              {/* Created Items List */}
+              {exportProgress.createdItems.length > 0 && (
+                <ScrollArea className="h-[200px] rounded-md border p-3">
+                  <div className="space-y-2">
+                    {exportProgress.createdItems.map((item, idx) => (
+                      <div 
+                        key={idx}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <Check className="h-4 w-4 text-green-500 shrink-0" />
+                        <Badge variant="outline" className="shrink-0 font-mono text-xs">
+                          {item.identifier}
+                        </Badge>
+                        <span className="truncate text-foreground">{item.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+
+              {/* Error Message */}
+              {exportProgress.hasError && exportProgress.errorMessage && (
+                <div className="flex items-start gap-2 text-sm bg-destructive/10 rounded-lg p-3">
+                  <X className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                  <span className="text-destructive">{exportProgress.errorMessage}</span>
+                </div>
+              )}
+
+              {/* Action Button */}
+              {exportProgress.isComplete && (
+                <Button 
+                  onClick={closeProgressDialog} 
+                  className="w-full"
+                  variant={exportProgress.hasError ? "outline" : "default"}
+                >
+                  {exportProgress.hasError ? "Close" : "Done"}
+                </Button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   // List view - show all backlogs
   if (!selectedBacklog) {
