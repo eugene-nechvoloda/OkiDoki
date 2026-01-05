@@ -313,18 +313,26 @@ async function createLinearIssue(
     }
   });
 
+  const authHeader = apiKey.startsWith("Bearer ")
+    ? apiKey
+    : apiKey.startsWith("lin_api_")
+      ? apiKey
+      : `Bearer ${apiKey}`;
+
   const response = await fetch("https://api.linear.app/graphql", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // Linear expects a Bearer token
-      "Authorization": `Bearer ${apiKey}`,
+      "Authorization": authHeader,
     },
     body: JSON.stringify({ query: mutation, variables }),
   });
 
   if (!response.ok) {
-    throw new Error(`Linear API error: ${response.status}`);
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `Linear API error: ${response.status}${errorText ? ` - ${errorText}` : ""}`
+    );
   }
 
   const data = await response.json();
