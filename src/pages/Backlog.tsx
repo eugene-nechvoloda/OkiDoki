@@ -214,6 +214,9 @@ export default function BacklogPage() {
               } else if (event.type === "complete") {
                 // On complete, use the result's createdIssues if available
                 const createdIssues = event.result?.createdIssues || [];
+                const hasErrors = (event.result?.errors?.length || 0) > 0;
+                const firstError = hasErrors ? event.result!.errors[0] : undefined;
+
                 setExportProgress(prev => ({
                   ...prev!,
                   current: prev?.total || 0,
@@ -222,7 +225,8 @@ export default function BacklogPage() {
                     identifier: issue.identifier,
                   })),
                   isComplete: true,
-                  hasError: (event.result?.errors?.length || 0) > 0,
+                  hasError: hasErrors,
+                  errorMessage: firstError,
                 }));
                 
                 // Save last export info
@@ -237,7 +241,9 @@ export default function BacklogPage() {
                 
                 if (event.result?.success) {
                   toast.success(`Exported ${event.result.totalIssues} issues to Linear`);
-                } else if (event.result?.errors?.length > 0) {
+                } else if ((event.result?.totalIssues || 0) === 0 && hasErrors) {
+                  toast.error("Export failed", { description: firstError });
+                } else if (hasErrors) {
                   toast.warning(`Exported with some errors`, {
                     description: `${event.result.totalIssues} created, ${event.result.errors.length} failed.`,
                   });
