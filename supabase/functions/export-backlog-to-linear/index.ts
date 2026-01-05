@@ -313,11 +313,9 @@ async function createLinearIssue(
     }
   });
 
-  const authHeader = apiKey.startsWith("Bearer ")
-    ? apiKey
-    : apiKey.startsWith("lin_api_")
-      ? apiKey
-      : `Bearer ${apiKey}`;
+  const token = apiKey.trim();
+  // Linear expects a Bearer token; accept both raw tokens and already-prefixed values.
+  const authHeader = token.toLowerCase().startsWith("bearer ") ? token : `Bearer ${token}`;
 
   const response = await fetch("https://api.linear.app/graphql", {
     method: "POST",
