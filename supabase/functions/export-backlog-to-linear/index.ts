@@ -317,7 +317,8 @@ async function createLinearIssue(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": apiKey,
+      // Linear expects a Bearer token
+      "Authorization": `Bearer ${apiKey}`,
     },
     body: JSON.stringify({ query: mutation, variables }),
   });
