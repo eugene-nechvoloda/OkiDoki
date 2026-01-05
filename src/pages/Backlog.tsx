@@ -49,6 +49,15 @@ interface ExportProgress {
   errorMessage?: string;
 }
 
+interface LastExportInfo {
+  backlogId: string;
+  date: string;
+  itemsExported: number;
+  success: boolean;
+}
+
+const LAST_EXPORT_KEY = "okidoki_last_linear_export";
+
 export default function BacklogPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -62,8 +71,20 @@ export default function BacklogPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
-  const [isProgressExpanded, setIsProgressExpanded] = useState(true);
+  const [lastExport, setLastExport] = useState<LastExportInfo | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Load last export info
+  useEffect(() => {
+    const stored = localStorage.getItem(LAST_EXPORT_KEY);
+    if (stored) {
+      try {
+        setLastExport(JSON.parse(stored));
+      } catch (e) {
+        console.error("Failed to parse last export:", e);
+      }
+    }
+  }, []);
 
   // Load backlogs from localStorage
   useEffect(() => {
@@ -203,6 +224,16 @@ export default function BacklogPage() {
                   isComplete: true,
                   hasError: (event.result?.errors?.length || 0) > 0,
                 }));
+                
+                // Save last export info
+                const exportInfo: LastExportInfo = {
+                  backlogId: backlog.id,
+                  date: new Date().toISOString(),
+                  itemsExported: event.result?.totalIssues || 0,
+                  success: event.result?.success || false,
+                };
+                setLastExport(exportInfo);
+                localStorage.setItem(LAST_EXPORT_KEY, JSON.stringify(exportInfo));
                 
                 if (event.result?.success) {
                   toast.success(`Exported ${event.result.totalIssues} issues to Linear`);
@@ -471,119 +502,84 @@ export default function BacklogPage() {
     );
   };
 
-  // Floating Progress Panel Component (non-blocking)
-  const renderProgressPanel = () => {
+  // Inline progress indicator for header
+  const renderExportProgress = () => {
     if (!exportProgress) return null;
 
-    const getStatusIcon = () => {
-      if (exportProgress.hasError) {
-        return <X className="h-4 w-4 text-destructive" />;
-      }
-      if (exportProgress.isComplete) {
-        return <Check className="h-4 w-4 text-green-500" />;
-      }
-      return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
-    };
+    const progressPercent = exportProgress.total > 0 
+      ? Math.round((exportProgress.current / exportProgress.total) * 100) 
+      : 0;
 
-    const getStatusText = () => {
-      if (exportProgress.hasError) return "Export Failed";
-      if (exportProgress.isComplete) return `Exported ${exportProgress.createdItems.length} issues`;
-      return `Exporting ${exportProgress.current}/${exportProgress.total}...`;
-    };
-
-    const getBorderColor = () => {
-      if (exportProgress.hasError) return "border-destructive/50";
-      if (exportProgress.isComplete) return "border-green-500/50";
-      return "border-primary/50";
-    };
-
-    return (
-      <div 
-        className={cn(
-          "fixed bottom-4 right-4 z-50 w-80 bg-background border rounded-lg shadow-lg transition-all",
-          getBorderColor()
-        )}
-      >
-        {/* Header - Always visible */}
-        <div 
-          className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/30 transition-colors"
-          onClick={() => setIsProgressExpanded(!isProgressExpanded)}
-        >
-          <LinearLogo className="h-4 w-4 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              {getStatusIcon()}
-              <span className="text-sm font-medium truncate">{getStatusText()}</span>
-            </div>
-          </div>
+    if (exportProgress.hasError) {
+      return (
+        <div className="flex items-center gap-2 text-xs text-destructive">
+          <X className="h-3 w-3" />
+          <span>Export failed</span>
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 shrink-0"
-            onClick={(e) => {
-              e.stopPropagation();
-              closeProgressDialog();
-            }}
+            className="h-5 w-5"
+            onClick={closeProgressDialog}
           >
             <X className="h-3 w-3" />
           </Button>
         </div>
+      );
+    }
 
-        {/* Expandable Content */}
-        {isProgressExpanded && (
-          <div className="px-3 pb-3 space-y-3">
-            {/* Progress Bar */}
-            <Progress 
-              value={(exportProgress.current / exportProgress.total) * 100} 
-              className={cn(
-                "h-1.5",
-                exportProgress.hasError && "[&>div]:bg-destructive",
-                exportProgress.isComplete && !exportProgress.hasError && "[&>div]:bg-green-500"
-              )}
-            />
+    if (exportProgress.isComplete) {
+      return (
+        <div className="flex items-center gap-2 text-xs text-green-600">
+          <Check className="h-3 w-3" />
+          <span>{exportProgress.createdItems.length} exported</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5"
+            onClick={closeProgressDialog}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      );
+    }
 
-            {/* Current Item */}
-            {!exportProgress.isComplete && exportProgress.currentItem && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                <span className="truncate">{exportProgress.currentItem}</span>
-              </div>
-            )}
-
-            {/* Created Items List */}
-            {exportProgress.createdItems.length > 0 && (
-              <ScrollArea className="h-[120px]">
-                <div className="space-y-1.5">
-                  {exportProgress.createdItems.slice(-10).map((item, idx) => (
-                    <div 
-                      key={idx}
-                      className="flex items-center gap-2 text-xs"
-                    >
-                      <Check className="h-3 w-3 text-green-500 shrink-0" />
-                      <Badge variant="outline" className="shrink-0 font-mono text-[10px] px-1.5 py-0">
-                        {item.identifier}
-                      </Badge>
-                      <span className="truncate text-muted-foreground">{item.title}</span>
-                    </div>
-                  ))}
-                  {exportProgress.createdItems.length > 10 && (
-                    <div className="text-xs text-muted-foreground text-center pt-1">
-                      +{exportProgress.createdItems.length - 10} more items
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            )}
-
-            {/* Error Message */}
-            {exportProgress.hasError && exportProgress.errorMessage && (
-              <div className="text-xs text-destructive bg-destructive/10 rounded p-2">
-                {exportProgress.errorMessage}
-              </div>
-            )}
-          </div>
-        )}
+    return (
+      <div className="flex items-center gap-2">
+        <Loader2 className="h-3 w-3 animate-spin text-primary" />
+        <span className="text-xs text-muted-foreground">
+          {exportProgress.current}/{exportProgress.total}
+        </span>
+        <Progress 
+          value={progressPercent} 
+          className="h-1.5 w-16"
+        />
       </div>
+    );
+  };
+
+  // Last export info display
+  const renderLastExportInfo = (backlogId: string) => {
+    if (!lastExport || lastExport.backlogId !== backlogId) return null;
+    
+    const exportDate = new Date(lastExport.date);
+    const formattedDate = exportDate.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    return (
+      <span className="text-xs text-muted-foreground flex items-center gap-1">
+        <Clock className="h-3 w-3" />
+        Last export: {formattedDate}
+        {lastExport.success && (
+          <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-green-600 border-green-600/30">
+            {lastExport.itemsExported}
+          </Badge>
+        )}
+      </span>
     );
   };
 
@@ -690,7 +686,6 @@ export default function BacklogPage() {
             </div>
           </ScrollArea>
         </div>
-        {renderProgressPanel()}
       </MainLayout>
     );
   }
@@ -767,30 +762,36 @@ export default function BacklogPage() {
               </div>
             </div>
 
-            {/* Export Button */}
+            {/* Export Button and Progress */}
             {!selectedItem && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={isExporting}
-                onClick={() => handleExportToLinear(selectedBacklog)}
-                className="gap-2"
-              >
-                {isExporting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <LinearLogo className="h-4 w-4" />
-                )}
-                Export to Linear
-              </Button>
+              <div className="flex items-center gap-3">
+                {renderExportProgress()}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isExporting}
+                  onClick={() => handleExportToLinear(selectedBacklog)}
+                  className="gap-2"
+                >
+                  {isExporting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <LinearLogo className="h-4 w-4" />
+                  )}
+                  Export to Linear
+                </Button>
+              </div>
             )}
           </div>
           
           {!selectedItem && (
-            <p className="text-sm text-muted-foreground mt-2">
-              {selectedBacklog.items.length} total items • Created{" "}
-              {new Date(selectedBacklog.createdAt).toLocaleDateString()}
-            </p>
+            <div className="flex items-center gap-4 mt-2">
+              <p className="text-sm text-muted-foreground">
+                {selectedBacklog.items.length} total items • Created{" "}
+                {new Date(selectedBacklog.createdAt).toLocaleDateString()}
+              </p>
+              {renderLastExportInfo(selectedBacklog.id)}
+            </div>
           )}
         </div>
 
@@ -814,7 +815,6 @@ export default function BacklogPage() {
           </div>
         </ScrollArea>
       </div>
-      {renderProgressPanel()}
     </MainLayout>
   );
 }
