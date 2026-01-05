@@ -529,7 +529,7 @@ export default function BacklogPage() {
 
     if (exportProgress.isComplete) {
       return (
-        <div className="flex items-center gap-2 text-xs text-green-600">
+        <div className="flex items-center gap-2 text-xs text-primary">
           <Check className="h-3 w-3" />
           <span>{exportProgress.createdItems.length} exported</span>
           <Button
@@ -575,7 +575,10 @@ export default function BacklogPage() {
         <Clock className="h-3 w-3" />
         Last export: {formattedDate}
         {lastExport.success && (
-          <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-green-600 border-green-600/30">
+          <Badge
+            variant="outline"
+            className="ml-1 text-[10px] px-1 py-0 text-primary border-primary/30"
+          >
             {lastExport.itemsExported}
           </Badge>
         )}
