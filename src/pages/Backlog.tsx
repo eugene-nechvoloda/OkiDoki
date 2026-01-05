@@ -164,28 +164,47 @@ export default function BacklogPage() {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() || "";
+        
+        // SSE events are separated by double newlines
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || ""; // Keep incomplete part in buffer
 
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
+        for (const part of parts) {
+          const trimmedPart = part.trim();
+          if (!trimmedPart) continue;
+          
+          // Handle data: prefix (standard SSE format)
+          const dataMatch = trimmedPart.match(/^data:\s*(.+)$/s);
+          if (dataMatch) {
             try {
-              const event = JSON.parse(line.slice(6));
+              const event = JSON.parse(dataMatch[1]);
+              console.log("SSE Event received:", event);
               
               if (event.type === "progress") {
-                setExportProgress(prev => ({
-                  current: event.current || prev?.current || 0,
-                  total: event.total || prev?.total || 0,
-                  currentItem: event.item || "",
-                  createdItems: event.identifier && event.success
+                setExportProgress(prev => {
+                  const newCreatedItems = event.identifier && event.success
                     ? [...(prev?.createdItems || []), { title: event.item, identifier: event.identifier }]
-                    : prev?.createdItems || [],
-                  isComplete: false,
-                  hasError: false,
-                }));
+                    : prev?.createdItems || [];
+                  
+                  return {
+                    current: event.current || prev?.current || 0,
+                    total: event.total || prev?.total || 0,
+                    currentItem: event.item || "",
+                    createdItems: newCreatedItems,
+                    isComplete: false,
+                    hasError: false,
+                  };
+                });
               } else if (event.type === "complete") {
+                // On complete, use the result's createdIssues if available
+                const createdIssues = event.result?.createdIssues || [];
                 setExportProgress(prev => ({
                   ...prev!,
+                  current: prev?.total || 0,
+                  createdItems: createdIssues.map((issue: { title: string; identifier: string }) => ({
+                    title: issue.title,
+                    identifier: issue.identifier,
+                  })),
                   isComplete: true,
                   hasError: (event.result?.errors?.length || 0) > 0,
                 }));
@@ -207,7 +226,7 @@ export default function BacklogPage() {
                 toast.error("Export failed", { description: event.error });
               }
             } catch (e) {
-              console.error("Failed to parse SSE event:", e);
+              console.error("Failed to parse SSE event:", trimmedPart, e);
             }
           }
         }
