@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,6 +10,93 @@ interface Settings {
   tone: string;
   docType: string;
   hierarchy: string;
+}
+
+/**
+ * Retrieve relevant knowledge base context for PRD generation
+ */
+async function retrieveKnowledgeContext(userId: string, query: string): Promise<string> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // Fetch documents and web sources
+  const [docsResult, sourcesResult] = await Promise.all([
+    supabase
+      .from("knowledge_documents")
+      .select("*")
+      .eq("user_id", userId),
+    supabase
+      .from("knowledge_web_sources")
+      .select("*")
+      .eq("user_id", userId),
+  ]);
+
+  const documents = docsResult.data || [];
+  const webSources = sourcesResult.data || [];
+
+  if (documents.length === 0 && webSources.length === 0) {
+    return "";
+  }
+
+  // Simple keyword-based relevance
+  const keywords = extractKeywords(query);
+
+  const relevantDocs = documents
+    .map((doc: any) => ({
+      ...doc,
+      score: calculateRelevance(doc.content_text, keywords),
+    }))
+    .filter((doc: any) => doc.score > 0)
+    .sort((a: any, b: any) => b.score - a.score)
+    .slice(0, 3);
+
+  const relevantSources = webSources
+    .map((source: any) => ({
+      ...source,
+      score: calculateRelevance(source.content_text, keywords),
+    }))
+    .filter((source: any) => source.score > 0)
+    .sort((a: any, b: any) => b.score - a.score)
+    .slice(0, 3);
+
+  // Build context string
+  let context = "\n\n--- KNOWLEDGE BASE CONTEXT ---\n\n";
+
+  if (relevantDocs.length > 0) {
+    context += "Relevant Documents:\n\n";
+    for (const doc of relevantDocs) {
+      context += `From "${doc.file_name}":\n${doc.content_text.substring(0, 1500)}...\n\n`;
+    }
+  }
+
+  if (relevantSources.length > 0) {
+    context += "Relevant Web Sources:\n\n";
+    for (const source of relevantSources) {
+      context += `From "${source.title}" (${source.url}):\n${source.content_text.substring(0, 1500)}...\n\n`;
+    }
+  }
+
+  context += "Use this context when generating the PRD. Reference specific information where relevant.\n";
+  context += "--- END KNOWLEDGE BASE CONTEXT ---\n\n";
+
+  return context;
+}
+
+function extractKeywords(text: string): string[] {
+  const stopWords = new Set(["the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "is", "are", "was", "were"]);
+  return text
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((word) => word.length > 3 && !stopWords.has(word));
+}
+
+function calculateRelevance(content: string, keywords: string[]): number {
+  const contentLower = content.toLowerCase();
+  return keywords.reduce((score, keyword) => {
+    const count = (contentLower.match(new RegExp(keyword, "g")) || []).length;
+    return score + count;
+  }, 0);
 }
 
 interface Template {
@@ -104,6 +192,35 @@ serve(async (req) => {
 
     console.log("Generating PRD with settings:", { tone, docType, hierarchy, template: template?.name, hasAttachments: !!attachments?.length });
 
+    // Retrieve knowledge base context
+    let knowledgeContext = "";
+    try {
+      const authHeader = req.headers.get("Authorization");
+      if (authHeader) {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        const { data: { user } } = await supabase.auth.getUser(
+          authHeader.replace("Bearer ", "")
+        );
+
+        if (user) {
+          // Extract query from last user message
+          const lastUserMessage = messages.filter((m: { role: string }) => m.role === "user").pop();
+          const query = lastUserMessage?.content || "";
+
+          knowledgeContext = await retrieveKnowledgeContext(user.id, query);
+          if (knowledgeContext) {
+            console.log("Knowledge base context retrieved");
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to retrieve knowledge context:", error);
+      // Continue without knowledge context
+    }
+
     const systemPrompt = `You are the Okidoki PRD Agent. Your purpose is to:
 - Generate high-quality PRDs from short text, rough thoughts, or descriptions.
 - Support PRD templates and let the user pick or specify sections inline via chat.
@@ -159,7 +276,7 @@ Before drafting a PRD, ask the user these clarifying questions if they haven't p
 5. Is this a v1/MVP or mature feature?
 6. Any hard constraints (platforms, deadlines, security)?
 7. Who is the main audience for this PRD?
-
+${knowledgeContext ? `\n${knowledgeContext}` : ""}
 Keep responses conversational but professional. Be concise and actionable.`;
 
     // Build messages for Anthropic, handling multimodal content
