@@ -4,8 +4,9 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { PRDPreview } from "@/components/prd/PRDPreview";
 import { useChat } from "@/hooks/useChat";
-import { saveDocument, getProjects } from "@/services/api";
-import type { Project } from "@/types/database";
+import { saveDocument, getFolders } from "@/services/api";
+import { supabase } from "@/integrations/supabase/client";
+import type { Folder } from "@/types/database";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PanelRightClose } from "lucide-react";
@@ -15,7 +16,8 @@ const Index = () => {
   const location = useLocation();
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [previewClosed, setPreviewClosed] = useState(false);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [isGeneratingBacklog, setIsGeneratingBacklog] = useState(false);
 
   const {
     chats,
@@ -24,15 +26,17 @@ const Index = () => {
     streamingContent,
     selectedTemplate,
     prdContent,
+    canRevert,
     setSelectedTemplate,
     createNewChat,
     selectChat,
     sendMessage,
+    revertPrdContent,
   } = useChat();
 
-  // Load projects on mount
+  // Load folders on mount
   useEffect(() => {
-    loadProjects();
+    loadFolders();
   }, []);
 
   // If we navigated here by selecting a chat from another page, open it automatically.
@@ -63,20 +67,20 @@ const Index = () => {
     }
   }, [location.state, navigate, selectChat, setSelectedTemplate]);
 
-  async function loadProjects() {
+  async function loadFolders() {
     try {
-      const { projects: proj } = await getProjects({ limit: 100 });
-      setProjects(proj);
+      const { folders: f } = await getFolders({ limit: 100 });
+      setFolders(f);
     } catch (error) {
-      console.error("Failed to load projects:", error);
+      console.error("Failed to load folders:", error);
     }
   }
 
   // Show preview when we have PRD content, unless manually closed
   const shouldShowPreview = !previewClosed && prdContent && prdContent.length > 100;
 
-  // Handle saving PRD to project
-  const handleSaveToProject = async (projectId?: string) => {
+  // Handle saving PRD to folder
+  const handleSaveToFolder = async (folderId?: string) => {
     if (!prdContent || prdContent.length < 50) {
       toast.error("No content to save");
       return;
@@ -88,18 +92,45 @@ const Index = () => {
         contentMarkdown: prdContent,
         status: "draft",
         visibility: "private",
-        projectId: projectId || undefined,
+        folderId: folderId || undefined,
       });
 
       toast.success("PRD saved successfully");
 
-      // Navigate to projects page
+      // Navigate to documents page
       setTimeout(() => {
         navigate("/projects");
       }, 1000);
     } catch (error) {
       console.error("Failed to save PRD:", error);
       toast.error("Failed to save PRD");
+    }
+  };
+
+  // Generate backlog from PRD
+  const handleGenerateBacklog = async () => {
+    if (!prdContent) return;
+    
+    setIsGeneratingBacklog(true);
+    try {
+      toast.info("Generating backlog from PRD...");
+      
+      const { data, error } = await supabase.functions.invoke("generate-backlog", {
+        body: { prdContent, prdTitle: currentChat?.title || "Untitled PRD" },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      if (data?.backlog) {
+        toast.success(`Generated ${data.backlog.items.length} backlog items`);
+        navigate("/backlog", { state: { backlog: data.backlog } });
+      }
+    } catch (error) {
+      console.error("Failed to generate backlog:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to generate backlog");
+    } finally {
+      setIsGeneratingBacklog(false);
     }
   };
 
@@ -148,8 +179,12 @@ const Index = () => {
                   onClose={() => setPreviewClosed(true)}
                   onCollapse={() => setPreviewCollapsed(true)}
                   isStreaming={isLoading && !!streamingContent}
-                  onSaveToProject={handleSaveToProject}
-                  projects={projects}
+                  onSaveToFolder={handleSaveToFolder}
+                  folders={folders}
+                  onRevert={revertPrdContent}
+                  canRevert={canRevert}
+                  onGenerateBacklog={handleGenerateBacklog}
+                  isGeneratingBacklog={isGeneratingBacklog}
                 />
               </div>
             )}

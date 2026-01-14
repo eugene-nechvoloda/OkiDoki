@@ -10,6 +10,8 @@ import Login from "./pages/Login";
 import Projects from "./pages/Projects";
 import Templates from "./pages/Templates";
 import Integrations from "./pages/Integrations";
+import Backlog from "./pages/Backlog";
+import LogoPreview from "./pages/LogoPreview";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,6 +57,15 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/backlog"
+              element={
+                <ProtectedRoute>
+                  <Backlog />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/logo-preview" element={<LogoPreview />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

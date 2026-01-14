@@ -37,6 +37,9 @@ import {
   FileDown,
   Share2,
   Loader2,
+  MoreVertical,
+  Undo2,
+  ListTodo,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect, useRef } from "react";
@@ -45,7 +48,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import { generatePRD, INTEGRATION_CONFIG } from "@/services/api";
-import type { Project, Integration } from "@/types/database";
+import type { Folder, Integration } from "@/types/database";
 import { TextImprovementToolbar } from "./TextImprovementToolbar";
 import { TextImprovementConfirmPanel } from "./TextImprovementConfirmPanel";
 import { SelectionHighlight } from "./SelectionHighlight";
@@ -194,8 +197,12 @@ interface PRDPreviewProps {
   onClose: () => void;
   onCollapse?: () => void;
   isStreaming?: boolean;
-  onSaveToProject?: (projectId?: string) => void;
-  projects?: Project[];
+  onSaveToFolder?: (folderId?: string) => void;
+  folders?: Folder[];
+  onRevert?: () => void;
+  canRevert?: boolean;
+  onGenerateBacklog?: () => void;
+  isGeneratingBacklog?: boolean;
 }
 
 interface Version {
@@ -209,8 +216,12 @@ export function PRDPreview({
   onClose,
   onCollapse,
   isStreaming,
-  onSaveToProject,
-  projects = [],
+  onSaveToFolder,
+  folders = [],
+  onRevert,
+  canRevert = false,
+  onGenerateBacklog,
+  isGeneratingBacklog = false,
 }: PRDPreviewProps) {
   const [copied, setCopied] = useState(false);
   const [versions, setVersions] = useState<Version[]>([{ content, timestamp: Date.now() }]);
@@ -234,8 +245,8 @@ export function PRDPreview({
   } = useTextSelection(contentRef);
   
   // Dialog & export state
-  const [showProjectDialog, setShowProjectDialog] = useState(false);
-  const [selectedProjectForSave, setSelectedProjectForSave] = useState<string | undefined>();
+  const [showFolderDialog, setShowFolderDialog] = useState(false);
+  const [selectedFolderForSave, setSelectedFolderForSave] = useState<string | undefined>();
   const [isExporting, setIsExporting] = useState(false);
   const [exportingProvider, setExportingProvider] = useState<IntegrationProvider | null>(null);
   const [connectedIntegrations, setConnectedIntegrations] = useState<Integration[]>([]);
@@ -339,12 +350,16 @@ export function PRDPreview({
 
       // Use MCP-powered intelligent export for Linear
       if (provider === 'linear') {
+        const integrationConfig = integration?.config_json as Record<string, unknown>;
+        
         const { data, error } = await supabase.functions.invoke("export-to-linear-mcp", {
           body: {
             title: title || "PRD Document",
             content: currentContent,
-            teamId: (integration?.config_json as Record<string, unknown>)?.team_id,
-            projectId: (integration?.config_json as Record<string, unknown>)?.project_id,
+            teamId: integrationConfig?.team_id,
+            projectId: integrationConfig?.project_id,
+            // Pass full integration for guest mode (includes api_key)
+            guestIntegration: integrationConfig,
           },
         });
 
@@ -724,70 +739,22 @@ Provide ONLY the improved text, nothing else:`;
         </div>
 
         <div className="flex items-center gap-0.5">
-          {versions.length > 1 && (
-            <>
-              <span className="text-xs text-muted-foreground mr-1">
-                v{currentVersionIndex + 1}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={handleRollback}
-                disabled={currentVersionIndex === 0}
-                title="Previous version"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={handleRollForward}
-                disabled={currentVersionIndex === versions.length - 1}
-                title="Next version"
-              >
-                <History className="h-3.5 w-3.5" />
-              </Button>
-            </>
-          )}
-
-          {onSaveToProject && currentContent && (
+          {/* Primary Actions - Always Visible */}
+          
+          {/* Save Button */}
+          {onSaveToFolder && currentContent && (
             <Button
               variant="ghost"
               size="icon"
               className="h-6 w-6"
-              onClick={() => setShowProjectDialog(true)}
-              title="Save to Project"
+              onClick={() => setShowFolderDialog(true)}
+              title="Save to Folder"
             >
               <Save className="h-3.5 w-3.5" />
             </Button>
           )}
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                disabled={!currentContent}
-                title="Download"
-              >
-                <Download className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleDownloadPDF}>
-                <FileDown className="h-4 w-4 mr-2" />
-                PDF
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDownloadMarkdown}>
-                <FileText className="h-4 w-4 mr-2" />
-                Markdown
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
+          {/* Export Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -837,21 +804,21 @@ Provide ONLY the improved text, nothing else:`;
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={handleCopy}
-            disabled={!currentContent}
-            title="Copy raw markdown"
-          >
-            {copied ? (
-              <Check className="h-3.5 w-3.5 text-green-500" />
-            ) : (
-              <Copy className="h-3.5 w-3.5" />
-            )}
-          </Button>
+          {/* Revert Button */}
+          {onRevert && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={onRevert}
+              disabled={!canRevert}
+              title="Revert last changes"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
 
+          {/* Collapse Button */}
           {onCollapse && (
             <Button
               variant="ghost"
@@ -863,6 +830,87 @@ Provide ONLY the improved text, nothing else:`;
               <PanelRightClose className="h-3.5 w-3.5" />
             </Button>
           )}
+
+          {/* Three-dot Menu for Secondary Actions */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                title="More options"
+              >
+                <MoreVertical className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {/* Version History */}
+              {versions.length > 1 && (
+                <>
+                  <DropdownMenuLabel className="text-xs text-muted-foreground flex items-center gap-2">
+                    Version {currentVersionIndex + 1} of {versions.length}
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onClick={handleRollback}
+                    disabled={currentVersionIndex === 0}
+                  >
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Previous version
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={handleRollForward}
+                    disabled={currentVersionIndex === versions.length - 1}
+                  >
+                    <History className="h-4 w-4 mr-2" />
+                    Next version
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              
+              {/* Copy Markdown */}
+              <DropdownMenuItem onClick={handleCopy} disabled={!currentContent}>
+                {copied ? (
+                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                ) : (
+                  <Copy className="h-4 w-4 mr-2" />
+                )}
+                Copy markdown
+              </DropdownMenuItem>
+              
+              {/* Download Options */}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Download
+              </DropdownMenuLabel>
+              <DropdownMenuItem onClick={handleDownloadPDF} disabled={!currentContent}>
+                <FileDown className="h-4 w-4 mr-2" />
+                PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadMarkdown} disabled={!currentContent}>
+                <FileText className="h-4 w-4 mr-2" />
+                Markdown
+              </DropdownMenuItem>
+              
+              {/* Generate Backlog */}
+              {onGenerateBacklog && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={onGenerateBacklog} 
+                    disabled={!currentContent || isGeneratingBacklog}
+                  >
+                    {isGeneratingBacklog ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <ListTodo className="h-4 w-4 mr-2" />
+                    )}
+                    Generate Backlog
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -939,35 +987,35 @@ Provide ONLY the improved text, nothing else:`;
         </div>
       </ScrollArea>
 
-      {/* Project Selection Dialog */}
-      <Dialog open={showProjectDialog} onOpenChange={setShowProjectDialog}>
+      {/* Folder Selection Dialog */}
+      <Dialog open={showFolderDialog} onOpenChange={setShowFolderDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Save PRD to Project</DialogTitle>
+            <DialogTitle>Save PRD to Folder</DialogTitle>
             <DialogDescription>
-              Choose a project or save without a project
+              Choose a folder or save without a folder
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {projects.length > 0 ? (
+            {folders.length > 0 ? (
               <div>
                 <label className="text-sm font-medium mb-2 block">
-                  Select Project (Optional)
+                  Select Folder (Optional)
                 </label>
                 <Select
-                  value={selectedProjectForSave}
-                  onValueChange={setSelectedProjectForSave}
+                  value={selectedFolderForSave}
+                  onValueChange={setSelectedFolderForSave}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="No project (save to root)" />
+                    <SelectValue placeholder="No folder (save to root)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No project (save to root)</SelectItem>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
+                    <SelectItem value="none">No folder (save to root)</SelectItem>
+                    {folders.map((folder) => (
+                      <SelectItem key={folder.id} value={folder.id}>
                         <div className="flex items-center gap-2">
                           <FolderKanban className="h-4 w-4" />
-                          {project.name}
+                          {folder.name}
                         </div>
                       </SelectItem>
                     ))}
@@ -976,22 +1024,22 @@ Provide ONLY the improved text, nothing else:`;
               </div>
             ) : (
               <div className="text-sm text-muted-foreground">
-                No projects yet. The PRD will be saved to your root documents.
+                No folders yet. The PRD will be saved to your root documents.
               </div>
             )}
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
-                onClick={() => setShowProjectDialog(false)}
+                onClick={() => setShowFolderDialog(false)}
               >
                 Cancel
               </Button>
               <Button
                 onClick={() => {
-                  const projectId = selectedProjectForSave === "none" ? undefined : selectedProjectForSave;
-                  onSaveToProject?.(projectId);
-                  setShowProjectDialog(false);
-                  setSelectedProjectForSave(undefined);
+                  const folderId = selectedFolderForSave === "none" ? undefined : selectedFolderForSave;
+                  onSaveToFolder?.(folderId);
+                  setShowFolderDialog(false);
+                  setSelectedFolderForSave(undefined);
                 }}
                 className="gradient-brand text-primary-foreground"
               >

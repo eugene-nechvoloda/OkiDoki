@@ -5,10 +5,13 @@ import {
   PanelLeftClose,
   PanelLeft,
   LogOut,
+  Plug,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Chat } from "@/types";
 import { useAuth } from "@/providers/AuthProvider";
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface ChatSidebarProps {
   chats: Chat[];
@@ -28,6 +31,9 @@ export function ChatSidebar({
   onToggleCollapse,
 }: ChatSidebarProps) {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isIntegrationsActive = location.pathname === "/integrations";
 
   if (isCollapsed) {
     return (
@@ -111,6 +117,21 @@ export function ChatSidebar({
           <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">⌘ K</kbd>
           <span>to search</span>
         </div>
+      </div>
+
+      {/* Settings Section */}
+      <div className="px-2 py-2 border-t border-sidebar-border">
+        <Button
+          variant="ghost"
+          onClick={() => navigate("/integrations")}
+          className={cn(
+            "w-full justify-start text-sm text-sidebar-foreground hover:bg-sidebar-accent",
+            isIntegrationsActive && "bg-sidebar-accent"
+          )}
+        >
+          <Plug className="h-4 w-4 mr-2" />
+          Integrations
+        </Button>
       </div>
 
       {/* User */}

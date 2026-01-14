@@ -8,7 +8,7 @@ import type {
   PRDDocumentInsert,
   FileAttachment,
   Template,
-  Project,
+  Folder,
   Integration,
 } from '@/types/database';
 import { getGuestId, readGuestJson, writeGuestJson } from "@/services/guestStorage";
@@ -17,10 +17,10 @@ import { BUILT_IN_TEMPLATES } from "@/data/templates";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const GUEST_STORAGE_KEYS = {
-  chats: "okidoki_guest_chats",
-  projects: "okidoki_guest_projects",
-  templates: "okidoki_guest_templates",
-  documents: "okidoki_guest_documents",
+  chats: "okidoki_chats",
+  folders: "okidoki_folders",
+  templates: "okidoki_templates",
+  documents: "okidoki_documents",
 } as const;
 
 async function isAuthenticated(): Promise<boolean> {
@@ -274,7 +274,7 @@ export interface SaveDocumentRequest {
   contentJson?: any;
   status?: 'draft' | 'final' | 'archived';
   visibility?: 'private' | 'public';
-  projectId?: string;
+  folderId?: string;
   templateId?: string;
 }
 
@@ -296,12 +296,12 @@ export async function saveDocument(
       const now = new Date().toISOString();
       const documents = readGuestJson<PRDDocument[]>(GUEST_STORAGE_KEYS.documents, []);
       
-      // Check for existing document with same title in same project
+      // Check for existing document with same title in same folder
       let existingDoc = data.documentId 
         ? documents.find((d) => d.id === data.documentId)
         : documents.find((d) => 
             d.title === data.title && 
-            d.project_id === (data.projectId || null) &&
+            d.folder_id === (data.folderId || null) &&
             d.owner_id === userId
           );
 
@@ -315,7 +315,7 @@ export async function saveDocument(
         content_json: data.contentJson ?? existingDoc?.content_json ?? null,
         status: (data.status ?? existingDoc?.status ?? 'draft') as any,
         visibility: (data.visibility ?? existingDoc?.visibility ?? 'private') as any,
-        project_id: data.projectId ?? existingDoc?.project_id ?? null,
+        folder_id: data.folderId ?? existingDoc?.folder_id ?? null,
         template_id: data.templateId ?? existingDoc?.template_id ?? null,
         created_at: existingDoc?.created_at ?? now,
         updated_at: now,
@@ -339,7 +339,7 @@ export async function saveDocument(
           content_json: data.contentJson,
           status: data.status || 'draft',
           visibility: data.visibility || 'private',
-          project_id: data.projectId,
+          folder_id: data.folderId,
           template_id: data.templateId,
           updated_at: new Date().toISOString(),
         })
@@ -357,13 +357,13 @@ export async function saveDocument(
       return { document };
     }
 
-    // Check for existing document with same title in same project
+    // Check for existing document with same title in same folder
     const { data: existingDocs } = await supabase
       .from('prd_documents')
       .select('id')
       .eq('owner_id', userId)
       .eq('title', data.title)
-      .eq('project_id', data.projectId || '')
+      .eq('folder_id', data.folderId || '')
       .limit(1);
 
     // If document with same title exists in same project, update it
@@ -379,7 +379,7 @@ export async function saveDocument(
           content_json: data.contentJson,
           status: data.status || 'draft',
           visibility: data.visibility || 'private',
-          project_id: data.projectId,
+          folder_id: data.folderId,
           template_id: data.templateId,
           updated_at: new Date().toISOString(),
         })
@@ -407,7 +407,7 @@ export async function saveDocument(
         content_json: data.contentJson,
         status: data.status || 'draft',
         visibility: data.visibility || 'private',
-        project_id: data.projectId,
+        folder_id: data.folderId,
         template_id: data.templateId,
       })
       .select()
@@ -437,7 +437,7 @@ export interface GetDocumentResponse {
 export async function getDocuments(params?: {
   limit?: number;
   offset?: number;
-  projectId?: string;
+  folderId?: string;
   status?: string;
   search?: string;
 }): Promise<GetDocumentsResponse> {
@@ -453,8 +453,8 @@ export async function getDocuments(params?: {
       );
 
       // Apply filters
-      if (params?.projectId) {
-        documents = documents.filter((d) => d.project_id === params.projectId);
+      if (params?.folderId) {
+        documents = documents.filter((d) => d.folder_id === params.folderId);
       }
       if (params?.status) {
         documents = documents.filter((d) => d.status === params.status);
@@ -485,8 +485,8 @@ export async function getDocuments(params?: {
     let documents = data || [];
 
     // Apply filters
-    if (params?.projectId) {
-      documents = documents.filter((d) => d.project_id === params.projectId);
+    if (params?.folderId) {
+      documents = documents.filter((d) => d.folder_id === params.folderId);
     }
     if (params?.status) {
       documents = documents.filter((d) => d.status === params.status);
@@ -780,53 +780,53 @@ export async function deleteTemplate(templateId: string): Promise<void> {
 }
 
 // =====================================================
-// PROJECTS API
+// FOLDERS API (formerly Projects)
 // =====================================================
 
-export interface GetProjectsResponse {
-  projects: Project[];
+export interface GetFoldersResponse {
+  folders: Folder[];
 }
 
-export interface CreateProjectRequest {
+export interface CreateFolderRequest {
   name: string;
   description?: string;
   visibility?: 'private' | 'public';
 }
 
-export interface UpdateProjectRequest {
-  projectId: string;
+export interface UpdateFolderRequest {
+  folderId: string;
   name?: string;
   description?: string;
   visibility?: 'private' | 'public';
 }
 
-export async function getProjects(params?: {
+export async function getFolders(params?: {
   limit?: number;
   search?: string;
-}): Promise<GetProjectsResponse> {
+}): Promise<GetFoldersResponse> {
   try {
     const authed = await isAuthenticated();
     const userId = await getCurrentUserId();
 
     if (!authed) {
-      let projects = readGuestJson<Project[]>(GUEST_STORAGE_KEYS.projects, []).filter(
-        (p) => p.user_id === userId
+      let folders = readGuestJson<Folder[]>(GUEST_STORAGE_KEYS.folders, []).filter(
+        (f) => f.user_id === userId
       );
 
       if (params?.search) {
         const search = params.search.toLowerCase();
-        projects = projects.filter((p) => p.name.toLowerCase().includes(search));
+        folders = folders.filter((f) => f.name.toLowerCase().includes(search));
       }
 
-      projects = [...projects].sort((a, b) =>
+      folders = [...folders].sort((a, b) =>
         (b.created_at || '').localeCompare(a.created_at || '')
       );
 
-      return { projects: projects.slice(0, params?.limit || 100) };
+      return { folders: folders.slice(0, params?.limit || 100) };
     }
 
     let query = supabase
-      .from('projects')
+      .from('folders')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
@@ -842,22 +842,22 @@ export async function getProjects(params?: {
     const { data, error } = await query;
 
     if (error) throw error;
-    return { projects: data || [] };
+    return { folders: data || [] };
   } catch (err) {
-    console.error('Failed to fetch projects:', err);
-    return { projects: [] };
+    console.error('Failed to fetch folders:', err);
+    return { folders: [] };
   }
 }
 
-export async function createProject(
-  data: CreateProjectRequest
-): Promise<{ project: Project }> {
+export async function createFolder(
+  data: CreateFolderRequest
+): Promise<{ folder: Folder }> {
   const authed = await isAuthenticated();
   const userId = await getCurrentUserId();
 
   if (!authed) {
     const now = new Date().toISOString();
-    const project: Project = {
+    const folder: Folder = {
       id: crypto.randomUUID(),
       user_id: userId,
       name: data.name,
@@ -867,45 +867,45 @@ export async function createProject(
       updated_at: now,
     };
 
-    const projects = readGuestJson<Project[]>(GUEST_STORAGE_KEYS.projects, []).filter(
-      (p) => p.user_id === userId
+    const folders = readGuestJson<Folder[]>(GUEST_STORAGE_KEYS.folders, []).filter(
+      (f) => f.user_id === userId
     );
-    writeGuestJson(GUEST_STORAGE_KEYS.projects, [project, ...projects]);
-    return { project };
+    writeGuestJson(GUEST_STORAGE_KEYS.folders, [folder, ...folders]);
+    return { folder };
   }
 
-  const { data: project, error } = await supabase
-    .from('projects')
+  const { data: folder, error } = await supabase
+    .from('folders')
     .insert({
       name: data.name,
       description: data.description,
-      user_id: userId, // Correct column name
+      user_id: userId,
     })
     .select()
     .single();
 
   if (error) {
-    console.error('❌ Create project error:', error);
+    console.error('❌ Create folder error:', error);
     throw error;
   }
-  return { project };
+  return { folder };
 }
 
-export async function updateProject(
-  data: UpdateProjectRequest
-): Promise<{ project: Project }> {
+export async function updateFolder(
+  data: UpdateFolderRequest
+): Promise<{ folder: Folder }> {
   const authed = await isAuthenticated();
   const userId = await getCurrentUserId();
 
   if (!authed) {
-    const projects = readGuestJson<Project[]>(GUEST_STORAGE_KEYS.projects, []).filter(
-      (p) => p.user_id === userId
+    const folders = readGuestJson<Folder[]>(GUEST_STORAGE_KEYS.folders, []).filter(
+      (f) => f.user_id === userId
     );
-    const existing = projects.find((p) => p.id === data.projectId);
-    if (!existing) throw new Error('Project not found');
+    const existing = folders.find((f) => f.id === data.folderId);
+    if (!existing) throw new Error('Folder not found');
 
     const now = new Date().toISOString();
-    const updated: Project = {
+    const updated: Folder = {
       ...existing,
       name: data.name ?? existing.name,
       description:
@@ -914,51 +914,60 @@ export async function updateProject(
     };
 
     writeGuestJson(
-      GUEST_STORAGE_KEYS.projects,
-      [updated, ...projects.filter((p) => p.id !== data.projectId)]
+      GUEST_STORAGE_KEYS.folders,
+      [updated, ...folders.filter((f) => f.id !== data.folderId)]
     );
 
-    return { project: updated };
+    return { folder: updated };
   }
 
   const updateData: any = {};
   if (data.name) updateData.name = data.name;
   if (data.description !== undefined) updateData.description = data.description;
 
-  const { data: project, error } = await supabase
-    .from('projects')
+  const { data: folder, error } = await supabase
+    .from('folders')
     .update(updateData)
-    .eq('id', data.projectId)
-    .eq('user_id', userId) // Ensure user owns this project
+    .eq('id', data.folderId)
+    .eq('user_id', userId)
     .select()
     .single();
 
   if (error) {
-    console.error('❌ Update project error:', error);
+    console.error('❌ Update folder error:', error);
     throw error;
   }
-  return { project };
+  return { folder };
 }
 
-export async function deleteProject(projectId: string): Promise<void> {
+export async function deleteFolder(folderId: string): Promise<void> {
   const authed = await isAuthenticated();
   const userId = await getCurrentUserId();
 
   if (!authed) {
-    const projects = readGuestJson<Project[]>(GUEST_STORAGE_KEYS.projects, []).filter(
-      (p) => p.user_id === userId
+    const folders = readGuestJson<Folder[]>(GUEST_STORAGE_KEYS.folders, []).filter(
+      (f) => f.user_id === userId
     );
     writeGuestJson(
-      GUEST_STORAGE_KEYS.projects,
-      projects.filter((p) => p.id !== projectId)
+      GUEST_STORAGE_KEYS.folders,
+      folders.filter((f) => f.id !== folderId)
     );
     return;
   }
 
-  const { error } = await supabase.from('projects').delete().eq('id', projectId);
+  const { error } = await supabase.from('folders').delete().eq('id', folderId);
 
   if (error) throw error;
 }
+
+// Legacy aliases for backward compatibility
+export const getProjects = getFolders;
+export const createProject = createFolder;
+export const updateProject = updateFolder;
+export const deleteProject = deleteFolder;
+export type GetProjectsResponse = GetFoldersResponse;
+export type CreateProjectRequest = CreateFolderRequest;
+export type UpdateProjectRequest = UpdateFolderRequest;
 
 // =====================================================
 // PRD GENERATION API (Enhanced)
