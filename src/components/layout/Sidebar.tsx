@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { Chat } from "@/types";
 import { useAuth } from "@/providers/AuthProvider";
+import okidokiLogo from "@/assets/logos/okidoki-logo-v2.png";
 
 interface SidebarProps {
   chats: Chat[];
@@ -127,8 +128,8 @@ export function Sidebar({
             variant="ghost"
             className="flex items-center gap-2 px-2 text-sidebar-foreground hover:bg-sidebar-accent"
           >
-            <div className="w-7 h-7 rounded-lg gradient-brand flex items-center justify-center">
-              <span className="text-xs font-bold text-primary-foreground">O</span>
+            <div className="w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center">
+              <img src={okidokiLogo} alt="OkiDoki" className="w-full h-full object-contain" />
             </div>
             <span className="font-medium">Personal account</span>
             <ChevronDown className="h-4 w-4 ml-auto" />
