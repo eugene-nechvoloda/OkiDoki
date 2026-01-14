@@ -38,6 +38,7 @@ import type { Integration } from "@/types/database";
 import { IntegrationSetupDialog } from "@/components/integrations/IntegrationSetupDialog";
 import { LinearSetupDialog } from "@/components/integrations/LinearSetupDialog";
 import { IntegrationLogo } from "@/components/integrations/IntegrationLogos";
+import { KnowledgeBaseSection } from "@/components/knowledge/KnowledgeBaseSection";
 import {
   Collapsible,
   CollapsibleContent,
@@ -219,83 +220,7 @@ export default function Integrations() {
               <div className="p-6">
                 {/* Knowledge Base Tab */}
                 <TabsContent value="knowledge" className="mt-0 space-y-6">
-                  <div>
-                    <h2 className="text-lg font-semibold mb-2">Knowledge Base</h2>
-                    <p className="text-sm text-muted-foreground mb-6">
-                      Connect your knowledge sources to enhance PRD generation with
-                      context-aware information.
-                    </p>
-
-                    <div className="space-y-4">
-                      {/* Upload Documents */}
-                      <div className="p-5 bg-card border border-border rounded-lg">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                              <span className="text-xl">📚</span>
-                            </div>
-                            <div>
-                              <h3 className="font-semibold">Document Library</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Upload files to use as context
-                              </p>
-                            </div>
-                          </div>
-                          <Button size="sm" variant="outline">
-                            <Plus className="h-4 w-4 mr-2" />
-                            Upload
-                          </Button>
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          0 documents uploaded
-                        </div>
-                      </div>
-
-                      {/* Web Sources */}
-                      <div className="p-5 bg-card border border-border rounded-lg">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                              <span className="text-xl">🌐</span>
-                            </div>
-                            <div>
-                              <h3 className="font-semibold">Web Sources</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Add URLs to crawl for context
-                              </p>
-                            </div>
-                          </div>
-                          <Button size="sm" variant="outline">
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add URL
-                          </Button>
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          No web sources added
-                        </div>
-                      </div>
-
-                      {/* API Connections */}
-                      <div className="p-5 bg-card border border-border rounded-lg opacity-60">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                              <span className="text-xl">🔌</span>
-                            </div>
-                            <div>
-                              <h3 className="font-semibold">API Connections</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Connect external APIs
-                              </p>
-                            </div>
-                          </div>
-                          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                            Coming Soon
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <KnowledgeBaseSection />
                 </TabsContent>
 
                 {/* Export Tab */}
