@@ -92,10 +92,11 @@ export function KnowledgeBaseSection() {
     }
   };
 
-  const getFileIcon = (fileType: string) => {
-    if (fileType.includes("pdf")) return "📄";
-    if (fileType.includes("word")) return "📝";
-    if (fileType.includes("csv")) return "📊";
+  const getFileIcon = (fileType: string | undefined) => {
+    const type = (fileType || "").toLowerCase();
+    if (type.includes("pdf")) return "📄";
+    if (type.includes("word")) return "📝";
+    if (type.includes("csv")) return "📊";
     return "📃";
   };
 
