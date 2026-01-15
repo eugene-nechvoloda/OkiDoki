@@ -1,10 +1,11 @@
 /**
  * Knowledge Base Service
  * Handles document storage, web source management, and RAG retrieval
- * Currently uses localStorage for all storage (guest mode)
+ * Uses migration-aware guest storage for data persistence
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { readGuestJson, writeGuestJson } from "./guestStorage";
 
 export interface KnowledgeDocument {
   id: string;
@@ -14,7 +15,7 @@ export interface KnowledgeDocument {
   file_size: number;
   storage_path: string;
   content_text: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -26,13 +27,13 @@ export interface KnowledgeWebSource {
   title: string;
   content_text: string;
   last_crawled_at: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
 
-const STORAGE_KEY_DOCS = "okidoki_knowledge_docs";
-const STORAGE_KEY_WEB = "okidoki_knowledge_web";
+const STORAGE_KEY_DOCS = "okidoki_documents";
+const STORAGE_KEY_WEB = "okidoki_web_sources";
 
 /**
  * Upload a document to the knowledge base
@@ -56,10 +57,10 @@ export async function uploadKnowledgeDocument(
     updated_at: new Date().toISOString(),
   };
 
-  // Store in localStorage
-  const docs = JSON.parse(localStorage.getItem(STORAGE_KEY_DOCS) || "[]");
+  // Store using migration-aware helper
+  const docs = readGuestJson<KnowledgeDocument[]>(STORAGE_KEY_DOCS, []);
   docs.push(doc);
-  localStorage.setItem(STORAGE_KEY_DOCS, JSON.stringify(docs));
+  writeGuestJson(STORAGE_KEY_DOCS, docs);
 
   return doc;
 }
@@ -68,16 +69,16 @@ export async function uploadKnowledgeDocument(
  * Get all knowledge documents for current user
  */
 export async function getKnowledgeDocuments(): Promise<KnowledgeDocument[]> {
-  return JSON.parse(localStorage.getItem(STORAGE_KEY_DOCS) || "[]");
+  return readGuestJson<KnowledgeDocument[]>(STORAGE_KEY_DOCS, []);
 }
 
 /**
  * Delete a knowledge document
  */
 export async function deleteKnowledgeDocument(docId: string): Promise<void> {
-  const docs = JSON.parse(localStorage.getItem(STORAGE_KEY_DOCS) || "[]");
-  const filtered = docs.filter((d: KnowledgeDocument) => d.id !== docId);
-  localStorage.setItem(STORAGE_KEY_DOCS, JSON.stringify(filtered));
+  const docs = readGuestJson<KnowledgeDocument[]>(STORAGE_KEY_DOCS, []);
+  const filtered = docs.filter((d) => d.id !== docId);
+  writeGuestJson(STORAGE_KEY_DOCS, filtered);
 }
 
 /**
@@ -98,9 +99,9 @@ export async function addKnowledgeWebSource(url: string): Promise<KnowledgeWebSo
     updated_at: new Date().toISOString(),
   };
 
-  const sources = JSON.parse(localStorage.getItem(STORAGE_KEY_WEB) || "[]");
+  const sources = readGuestJson<KnowledgeWebSource[]>(STORAGE_KEY_WEB, []);
   sources.push(source);
-  localStorage.setItem(STORAGE_KEY_WEB, JSON.stringify(sources));
+  writeGuestJson(STORAGE_KEY_WEB, sources);
 
   return source;
 }
@@ -109,31 +110,31 @@ export async function addKnowledgeWebSource(url: string): Promise<KnowledgeWebSo
  * Get all web sources for current user
  */
 export async function getKnowledgeWebSources(): Promise<KnowledgeWebSource[]> {
-  return JSON.parse(localStorage.getItem(STORAGE_KEY_WEB) || "[]");
+  return readGuestJson<KnowledgeWebSource[]>(STORAGE_KEY_WEB, []);
 }
 
 /**
  * Delete a web source
  */
 export async function deleteKnowledgeWebSource(sourceId: string): Promise<void> {
-  const sources = JSON.parse(localStorage.getItem(STORAGE_KEY_WEB) || "[]");
-  const filtered = sources.filter((s: KnowledgeWebSource) => s.id !== sourceId);
-  localStorage.setItem(STORAGE_KEY_WEB, JSON.stringify(filtered));
+  const sources = readGuestJson<KnowledgeWebSource[]>(STORAGE_KEY_WEB, []);
+  const filtered = sources.filter((s) => s.id !== sourceId);
+  writeGuestJson(STORAGE_KEY_WEB, filtered);
 }
 
 /**
  * Refresh a web source (re-crawl content)
  */
 export async function refreshWebSource(sourceId: string): Promise<void> {
-  const sources = JSON.parse(localStorage.getItem(STORAGE_KEY_WEB) || "[]");
-  const source = sources.find((s: KnowledgeWebSource) => s.id === sourceId);
+  const sources = readGuestJson<KnowledgeWebSource[]>(STORAGE_KEY_WEB, []);
+  const source = sources.find((s) => s.id === sourceId);
   if (!source) return;
 
   const { title, content } = await fetchWebContent(source.url);
   source.title = title;
   source.content_text = content;
   source.last_crawled_at = new Date().toISOString();
-  localStorage.setItem(STORAGE_KEY_WEB, JSON.stringify(sources));
+  writeGuestJson(STORAGE_KEY_WEB, sources);
 }
 
 /**
