@@ -139,18 +139,152 @@ async function exportToGamma(title: string, content: string, config?: ExportRequ
 }
 
 async function exportToNapkin(title: string, content: string, config?: ExportRequest["integrationConfig"]) {
-  // Napkin AI integration placeholder
-  if (!config?.api_key) {
+  const apiKey = config?.api_key || Deno.env.get("NAPKIN_API_KEY");
+
+  if (!apiKey) {
     throw new Error("Napkin AI API key not configured. Please connect Napkin AI in Integrations settings.");
   }
-  
-  // TODO: Implement Napkin AI API integration
-  
-  return {
-    success: true,
-    message: "Napkin AI export coming soon",
-    url: null,
+
+  // Determine diagram type based on content analysis
+  const diagramType = suggestDiagramType(content);
+
+  // Extract context for better diagram generation
+  const context = extractDiagramContext(content);
+  const goal = "Visualize this Product Requirements Document with a clear, professional diagram";
+
+  console.log(`Generating Napkin diagram: type=${diagramType}`);
+
+  // Build the prompt
+  let prompt = content;
+  if (goal) {
+    prompt = `Goal: ${goal}\n\n${prompt}`;
+  }
+  if (context) {
+    prompt = `Context: ${context}\n\n${prompt}`;
+  }
+
+  // Add diagram type guidance
+  const typeInstructions: Record<string, string> = {
+    "flowchart": "Create a flowchart diagram showing decision points and process flow.",
+    "workflow": "Create a workflow diagram showing sequential steps and transitions.",
+    "data-flow": "Create a data flow diagram showing how data moves through the system.",
+    "erd": "Create an entity-relationship diagram showing database schema and relationships.",
+    "mind-map": "Create a mind map showing concepts and their hierarchical relationships.",
+    "business-framework": "Create a business framework diagram showing strategic components.",
+    "process-map": "Create a process map showing detailed operational steps.",
   };
+
+  if (diagramType !== "auto" && typeInstructions[diagramType]) {
+    prompt = `${typeInstructions[diagramType]}\n\n${prompt}`;
+  }
+
+  try {
+    // Call Napkin AI API
+    const napkinResponse = await fetch("https://api.napkin.ai/v1/diagrams", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        prompt: prompt,
+        title: title,
+        style: "professional",
+        format: "png",
+        options: {
+          diagramType: diagramType === "auto" ? undefined : diagramType,
+        },
+      }),
+    });
+
+    if (!napkinResponse.ok) {
+      const errorText = await napkinResponse.text();
+      throw new Error(`Napkin AI API error: ${napkinResponse.status} - ${errorText}`);
+    }
+
+    const napkinData = await napkinResponse.json();
+
+    return {
+      success: true,
+      message: "Diagram generated successfully with Napkin AI",
+      url: napkinData.url || napkinData.diagramUrl,
+      imageUrl: napkinData.imageUrl || napkinData.exportUrl,
+    };
+  } catch (error) {
+    console.error("Napkin export error:", error);
+    throw error;
+  }
+}
+
+// Helper function to suggest diagram type based on content
+function suggestDiagramType(content: string): string {
+  const lower = content.toLowerCase();
+
+  if (
+    lower.includes("database") ||
+    lower.includes("schema") ||
+    lower.includes("entity") ||
+    lower.includes("table")
+  ) {
+    return "erd";
+  }
+
+  if (
+    lower.includes("workflow") ||
+    lower.includes("process") ||
+    lower.includes("step") ||
+    lower.includes("approval")
+  ) {
+    return "workflow";
+  }
+
+  if (
+    lower.includes("data flow") ||
+    lower.includes("api") ||
+    lower.includes("integration")
+  ) {
+    return "data-flow";
+  }
+
+  if (
+    lower.includes("decision") ||
+    lower.includes("condition") ||
+    lower.includes("if ")
+  ) {
+    return "flowchart";
+  }
+
+  if (
+    lower.includes("concept") ||
+    lower.includes("hierarchy")
+  ) {
+    return "mind-map";
+  }
+
+  if (
+    lower.includes("framework") ||
+    lower.includes("strategy")
+  ) {
+    return "business-framework";
+  }
+
+  return "auto";
+}
+
+// Helper function to extract context
+function extractDiagramContext(content: string): string {
+  const lines = content.split("\n");
+  const contextLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("#")) {
+      contextLines.push(trimmed);
+    }
+    if (contextLines.length >= 10) break;
+  }
+
+  return contextLines.join("\n").substring(0, 500);
 }
 
 serve(async (req) => {

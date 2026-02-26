@@ -40,6 +40,8 @@ import {
   MoreVertical,
   Undo2,
   ListTodo,
+  Wand2,
+  Image as ImageIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect, useRef } from "react";
@@ -55,6 +57,12 @@ import { SelectionHighlight } from "./SelectionHighlight";
 import { exportToPDF } from "@/utils/pdfExport";
 import { useTextSelection } from "@/hooks/useTextSelection";
 import { cn } from "@/lib/utils";
+import {
+  generateDiagram,
+  suggestDiagramType,
+  extractDiagramContext,
+  type DiagramType,
+} from "@/services/napkinAi";
 
 // Strip markdown formatting from text to preserve original style
 const stripMarkdownFormatting = (text: string): string => {
@@ -251,6 +259,11 @@ export function PRDPreview({
   const [exportingProvider, setExportingProvider] = useState<IntegrationProvider | null>(null);
   const [connectedIntegrations, setConnectedIntegrations] = useState<Integration[]>([]);
 
+  // Diagram generation state
+  const [isGeneratingDiagram, setIsGeneratingDiagram] = useState(false);
+  const [diagramImageUrl, setDiagramImageUrl] = useState<string | null>(null);
+  const [showDiagram, setShowDiagram] = useState(false);
+
   // Load connected integrations from both guest mode and authenticated mode
   useEffect(() => {
     const loadIntegrations = async () => {
@@ -434,6 +447,60 @@ export function PRDPreview({
 
   const isIntegrationConnected = (provider: IntegrationProvider) => {
     return connectedIntegrations.some(i => i.provider === provider && i.status === 'connected');
+  };
+
+  // Generate diagram from current PRD content
+  const handleGenerateDiagram = async () => {
+    if (!currentContent) return;
+
+    setIsGeneratingDiagram(true);
+
+    try {
+      toast.info("Analyzing PRD and generating diagram...");
+
+      // Suggest diagram type based on content
+      const suggestedType = suggestDiagramType(currentContent);
+      const context = extractDiagramContext(currentContent);
+
+      const result = await generateDiagram({
+        text: currentContent,
+        title: title || "PRD Diagram",
+        diagramType: suggestedType as DiagramType,
+        context: context,
+        goal: "Create a visual diagram that clearly represents this Product Requirements Document",
+        style: "professional",
+      });
+
+      if (result.success && result.imageUrl) {
+        setDiagramImageUrl(result.imageUrl);
+        setShowDiagram(true);
+        toast.success("Diagram generated successfully!");
+      } else {
+        toast.error(result.error || "Failed to generate diagram");
+      }
+    } catch (error) {
+      console.error("Failed to generate diagram:", error);
+      toast.error("Failed to generate diagram");
+    } finally {
+      setIsGeneratingDiagram(false);
+    }
+  };
+
+  // Attach diagram to PRD
+  const handleAttachDiagram = () => {
+    if (!diagramImageUrl || !currentContent) return;
+
+    // Add diagram markdown to the end of the PRD
+    const diagramMarkdown = `\n\n## Visual Diagram\n\n![PRD Diagram](${diagramImageUrl})\n\n*This diagram was automatically generated using Napkin AI to visualize the key components and relationships described in this PRD.*\n`;
+
+    const newContent = currentContent + diagramMarkdown;
+    const newVersion = { content: newContent, timestamp: Date.now() };
+
+    setVersions(prev => [...prev.slice(0, currentVersionIndex + 1), newVersion]);
+    setCurrentVersionIndex(prev => prev + 1);
+
+    toast.success("Diagram attached to PRD");
+    setShowDiagram(false);
   };
 
   // Regenerate selected text with AI
@@ -754,6 +821,24 @@ Provide ONLY the improved text, nothing else:`;
             </Button>
           )}
 
+          {/* Generate Diagram Button */}
+          {isIntegrationConnected('napkin') && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={handleGenerateDiagram}
+              disabled={!currentContent || isGeneratingDiagram}
+              title="Generate Visual Diagram with Napkin AI"
+            >
+              {isGeneratingDiagram ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Wand2 className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          )}
+
           {/* Export Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -986,6 +1071,44 @@ Provide ONLY the improved text, nothing else:`;
           )}
         </div>
       </ScrollArea>
+
+      {/* Diagram Preview Dialog */}
+      <Dialog open={showDiagram} onOpenChange={setShowDiagram}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Generated Diagram</DialogTitle>
+            <DialogDescription>
+              Visual representation of your PRD created with Napkin AI
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {diagramImageUrl && (
+              <div className="border rounded-lg overflow-hidden bg-muted/30">
+                <img
+                  src={diagramImageUrl}
+                  alt="PRD Diagram"
+                  className="w-full h-auto"
+                />
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowDiagram(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAttachDiagram}
+                className="gradient-brand text-primary-foreground"
+              >
+                <ImageIcon className="h-4 w-4 mr-2" />
+                Attach to PRD
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Folder Selection Dialog */}
       <Dialog open={showFolderDialog} onOpenChange={setShowFolderDialog}>
