@@ -9,7 +9,7 @@ type LegacyKeyAliases = Record<string, string[]>;
 const LEGACY_KEY_ALIASES: LegacyKeyAliases = {
   // Guest-prefix migration
   okidoki_chats: ["okidoki_guest_chats"],
-  okidoki_documents: ["okidoki_guest_documents"],
+  okidoki_documents: ["okidoki_guest_documents", "okidoki_knowledge_docs"],
   okidoki_templates: ["okidoki_guest_templates"],
 
   // Projects -> Folders rename migration (+ guest-prefix migration for folders)
@@ -18,6 +18,9 @@ const LEGACY_KEY_ALIASES: LegacyKeyAliases = {
     "okidoki_projects",
     "okidoki_guest_projects",
   ],
+
+  // Knowledge base web sources migration
+  okidoki_web_sources: ["okidoki_knowledge_web"],
 };
 
 function safeParse<T>(raw: string | null, fallback: T): T {

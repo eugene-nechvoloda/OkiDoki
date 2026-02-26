@@ -69,17 +69,20 @@ export function DocumentUploadDialog({
 
     setUploading(true);
 
-    const progress: Record<string, "pending" | "uploading" | "done" | "error"> = {};
+    const initialProgress: Record<string, "pending" | "uploading" | "done" | "error"> = {};
     selectedFiles.forEach((file) => {
-      progress[file.name] = "pending";
+      initialProgress[file.name] = "pending";
     });
-    setUploadProgress(progress);
+    setUploadProgress(initialProgress);
+
+    let successCount = 0;
 
     for (const file of selectedFiles) {
       try {
         setUploadProgress((prev) => ({ ...prev, [file.name]: "uploading" }));
 
         await uploadKnowledgeDocument(file);
+        successCount += 1;
 
         setUploadProgress((prev) => ({ ...prev, [file.name]: "done" }));
       } catch (error) {
@@ -88,8 +91,6 @@ export function DocumentUploadDialog({
         setUploadProgress((prev) => ({ ...prev, [file.name]: "error" }));
       }
     }
-
-    const successCount = Object.values(uploadProgress).filter((s) => s === "done").length;
 
     if (successCount > 0) {
       toast.success(`Successfully uploaded ${successCount} document(s)`);

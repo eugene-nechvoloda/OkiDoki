@@ -30,6 +30,10 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   FolderKanban,
@@ -44,6 +48,12 @@ import {
   X,
   FolderOpen,
   Clock,
+  Copy,
+  Check,
+  Share2,
+  FileDown,
+  MoreVertical,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -54,16 +64,19 @@ import {
   getDocuments,
   saveDocument,
   generatePRD,
+  INTEGRATION_CONFIG,
 } from "@/services/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { useChat } from "@/hooks/useChat";
-import type { Folder, PRDDocument } from "@/types/database";
+import type { Folder, PRDDocument, Integration } from "@/types/database";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import { TextImprovementToolbar } from "@/components/prd/TextImprovementToolbar";
 import { TextImprovementConfirmPanel } from "@/components/prd/TextImprovementConfirmPanel";
+import { exportToPDF } from "@/utils/pdfExport";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Documents() {
   const navigate = useNavigate();
@@ -101,6 +114,12 @@ export default function Documents() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
 
+  // Export state
+  const [copied, setCopied] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportingProvider, setExportingProvider] = useState<string | null>(null);
+  const [connectedIntegrations, setConnectedIntegrations] = useState<Integration[]>([]);
+
   // Load folders on mount
   useEffect(() => {
     loadFolders();
@@ -112,6 +131,41 @@ export default function Documents() {
       loadFolderDocuments(selectedFolder.id);
     }
   }, [selectedFolder]);
+
+  // Load connected integrations from both guest mode and authenticated mode
+  useEffect(() => {
+    const loadIntegrations = async () => {
+      try {
+        // First try to load from Supabase (authenticated mode)
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          // Authenticated mode: read from database
+          const { data, error } = await supabase
+            .from('integrations')
+            .select('*')
+            .eq('status', 'connected');
+          
+          if (!error && data) {
+            setConnectedIntegrations(data);
+            return;
+          }
+        }
+        
+        // Guest mode: read from localStorage
+        const GUEST_INTEGRATIONS_KEY = "okidoki_integrations";
+        const stored = localStorage.getItem(GUEST_INTEGRATIONS_KEY);
+        if (stored) {
+          const guestIntegrations = JSON.parse(stored) as Integration[];
+          const connected = guestIntegrations.filter(i => i.status === 'connected');
+          setConnectedIntegrations(connected);
+        }
+      } catch (err) {
+        console.log('Could not load integrations:', err);
+      }
+    };
+    loadIntegrations();
+  }, []);
 
   async function loadFolders() {
     try {
@@ -250,6 +304,129 @@ export default function Documents() {
       console.error("Failed to save document:", error);
       toast.error("Failed to save document");
     }
+  };
+
+  // Export handlers
+  type IntegrationProvider = keyof typeof INTEGRATION_CONFIG;
+
+  const handleCopyMarkdown = async () => {
+    await navigator.clipboard.writeText(editContent);
+    setCopied(true);
+    toast.success("Markdown copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownloadMarkdown = () => {
+    const blob = new Blob([editContent], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${selectedDoc?.title || "Document"}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("Document downloaded as Markdown");
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      toast.info("Generating PDF...");
+      await exportToPDF(editContent, selectedDoc?.title || "Document");
+      toast.success("Document downloaded as PDF");
+    } catch (error) {
+      console.error("Failed to generate PDF:", error);
+      toast.error("Failed to generate PDF");
+    }
+  };
+
+  const handleExportToIntegration = async (provider: IntegrationProvider) => {
+    if (!editContent || !selectedDoc) return;
+
+    const integration = connectedIntegrations.find(i => i.provider === provider);
+    const config = INTEGRATION_CONFIG[provider];
+
+    setIsExporting(true);
+    setExportingProvider(provider);
+
+    try {
+      toast.info(`Exporting to ${config.name}...`);
+
+      // Use MCP-powered intelligent export for Linear
+      if (provider === 'linear') {
+        const integrationConfig = integration?.config_json as Record<string, unknown>;
+        
+        const { data, error } = await supabase.functions.invoke("export-to-linear-mcp", {
+          body: {
+            title: selectedDoc.title,
+            content: editContent,
+            teamId: integrationConfig?.team_id,
+            projectId: integrationConfig?.project_id,
+            guestIntegration: integrationConfig,
+          },
+        });
+
+        if (error) {
+          console.error(`Export to ${config.name} error:`, error);
+          toast.error(error.message || `Failed to export to ${config.name}`);
+          return;
+        }
+
+        if (data?.error || data?.errors) {
+          const errorMsg = data?.error || (data?.errors?.length > 0 ? data.errors.join(', ') : 'Unknown error');
+          toast.error(errorMsg);
+          return;
+        }
+
+        if (data?.success || data?.createdIssues?.length > 0) {
+          const msg = `Created ${data.totalIssues || data.createdIssues.length} issues in ${config.name}`;
+          toast.success(msg);
+
+          if (data.rootIssue?.url) {
+            window.open(data.rootIssue.url, "_blank");
+          }
+        }
+        return;
+      }
+
+      // Use generic export for other integrations
+      const { data, error } = await supabase.functions.invoke("export-to-integration", {
+        body: {
+          provider,
+          title: selectedDoc.title,
+          content: editContent,
+          integrationConfig: integration?.config_json,
+        },
+      });
+
+      if (error) {
+        console.error(`Export to ${config.name} error:`, error);
+        toast.error(error.message || `Failed to export to ${config.name}`);
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      if (data?.success) {
+        toast.success(data.message || `Exported to ${config.name} successfully`);
+        if (data.url) {
+          window.open(data.url, "_blank");
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to export to ${config.name}:`, error);
+      toast.error(`Failed to export to ${config.name}`);
+    } finally {
+      setIsExporting(false);
+      setExportingProvider(null);
+    }
+  };
+
+  const isIntegrationConnected = (provider: IntegrationProvider) => {
+    return connectedIntegrations.some(i => i.provider === provider && i.status === 'connected');
   };
 
   const markdownComponents: Components = {
@@ -508,6 +685,51 @@ export default function Documents() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {/* Export dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isExporting}
+                    >
+                      {isExporting ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Share2 className="h-4 w-4 mr-2" />
+                      )}
+                      Export
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuLabel>Export to Integration</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {(Object.keys(INTEGRATION_CONFIG) as IntegrationProvider[]).map((provider) => {
+                      const config = INTEGRATION_CONFIG[provider];
+                      const connected = isIntegrationConnected(provider);
+                      return (
+                        <DropdownMenuItem
+                          key={provider}
+                          onClick={() => handleExportToIntegration(provider)}
+                          disabled={!connected || isExporting}
+                          className="flex items-center justify-between"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span>{config.icon}</span>
+                            <span>{config.name}</span>
+                          </span>
+                          {!connected && (
+                            <span className="text-xs text-muted-foreground">Not connected</span>
+                          )}
+                          {isExporting && exportingProvider === provider && (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          )}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
                 {isEditing ? (
                   <>
                     <Button
@@ -550,6 +772,45 @@ export default function Documents() {
                     </Button>
                   </>
                 )}
+
+                {/* Three-dot menu */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={handleCopyMarkdown}>
+                      {copied ? (
+                        <>
+                          <Check className="h-4 w-4 mr-2 text-green-500" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy markdown
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <FileDown className="h-4 w-4 mr-2" />
+                        Download
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuItem onClick={handleDownloadPDF}>
+                          PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleDownloadMarkdown}>
+                          Markdown
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 

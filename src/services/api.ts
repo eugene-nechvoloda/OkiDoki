@@ -1362,10 +1362,10 @@ export const INTEGRATION_CONFIG = {
   napkin: {
     name: 'Napkin AI',
     icon: '✏️',
-    description: 'Create visual diagrams from PRDs',
+    description: 'AI-powered visual diagram generation from PRDs. Automatically creates flowcharts, ERDs, workflows, and more.',
     category: 'export',
     scopes: ['read:projects', 'write:diagrams'],
-    authUrl: 'https://napkin.ai/oauth/authorize',
+    authUrl: 'https://napkin.ai/api/settings',
     tokenUrl: 'https://api.napkin.ai/oauth/token',
   },
 } as const;
